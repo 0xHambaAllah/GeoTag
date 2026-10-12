@@ -1,0 +1,35 @@
+name: Generate Keystore & Extract SHA-1
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Generate keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore release.keystore \
+            -storepass geotag123456 \
+            -alias geotag \
+            -keypass geotag123456 \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=GeoTag,OU=Mobile,O=GeoTag,L=Jakarta,ST=Jakarta,C=ID"
+      
+      - name: Extract SHA-1
+        run: |
+          echo "========================================="
+          echo "SHA-1 FINGERPRINT:"
+          echo "========================================="
+          keytool -list -v -keystore release.keystore -storepass geotag123456 | grep -A1 "SHA1:"
+          echo "========================================="
+      
+      - name: Upload keystore
+        uses: actions/upload-artifact@v3
+        with:
+          name: geotag-keystore
+          path: release.keystore
