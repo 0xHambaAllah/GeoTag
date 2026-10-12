@@ -15,15 +15,15 @@
       },
       "oauth_client": [
         {
-          "client_id": "323244718562-e8dbivoa7njorfu2f7qnvqok6trjlpod.apps.googleusercontent.com",
+          "client_id": "323244718562-pmtct5vbm2ia7lc8aum1hn8merfohpuj.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.geotag.app",
-            "certificate_hash": "7dfcafb85ec9b228e9930f987a2534d5ff879dbb"
+            "certificate_hash": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
           }
         },
         {
-          "client_id": "323244718562-pm872fdtv8hdm24daelan9v13f4a3nvh.apps.googleusercontent.com",
+          "client_id": "323244718562-2d3i16ub8pis2b8e29g2h6rgnmubij1a.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
@@ -36,7 +36,7 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "323244718562-pm872fdtv8hdm24daelan9v13f4a3nvh.apps.googleusercontent.com",
+              "client_id": "323244718562-2d3i16ub8pis2b8e29g2h6rgnmubij1a.apps.googleusercontent.com",
               "client_type": 3
             }
           ]
