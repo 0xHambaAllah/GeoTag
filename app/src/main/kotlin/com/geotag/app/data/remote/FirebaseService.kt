@@ -7,6 +7,7 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
+import okhttp3.MediaType.Companion.toMediaType
 import java.io.File
 
 class FirebaseService {
@@ -41,7 +42,7 @@ class FirebaseService {
                     "image",
                     photoFile.name,
                     okhttp3.RequestBody.create(
-                        okhttp3.MediaType.parse("image/jpeg"),
+                        "image/jpeg".toMediaType(),
                         photoFile
                     )
                 )
@@ -53,10 +54,10 @@ class FirebaseService {
                 .build()
             
             val response = client.newCall(request).execute()
-            val responseBody = response.body()?.string() ?: throw Exception("Empty response")
+            val responseBody = response.body?.string() ?: throw Exception("Empty response")
             
             if (!response.isSuccessful) {
-                throw Exception("Upload failed: ${response.code()}")
+                throw Exception("Upload failed: ${response.code}")
             }
             
             // Parse JSON response to extract image URL

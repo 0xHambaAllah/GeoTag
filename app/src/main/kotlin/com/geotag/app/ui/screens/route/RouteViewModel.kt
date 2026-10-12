@@ -80,7 +80,7 @@ class RouteViewModel(application: Application) : AndroidViewModel(application) {
                 val distance = LocationUtils.calculateDistance(
                     currentLat, currentLng,
                     loc.latitude, loc.longitude
-                )
+                ).toDouble()
                 if (distance < minDistance) {
                     minDistance = distance
                     nearest = loc
