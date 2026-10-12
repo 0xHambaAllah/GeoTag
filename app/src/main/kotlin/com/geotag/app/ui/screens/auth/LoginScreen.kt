@@ -1,6 +1,7 @@
 package com.geotag.app.ui.screens.auth
 
 import android.app.Activity
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -43,22 +44,33 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
+            Toast.makeText(context, "Memproses akun Google...", Toast.LENGTH_SHORT).show()
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             try {
                 val account = task.getResult(ApiException::class.java)
+                Toast.makeText(context, "Akun diterima: ${account.email}", Toast.LENGTH_SHORT).show()
                 val credential = GoogleAuthProvider.getCredential(account.idToken, null)
+                Toast.makeText(context, "Menghubungi Firebase...", Toast.LENGTH_SHORT).show()
                 FirebaseAuth.getInstance().signInWithCredential(credential)
-                    .addOnSuccessListener { onLoginSuccess() }
+                    .addOnSuccessListener { 
+                        Toast.makeText(context, "Login berhasil!", Toast.LENGTH_SHORT).show()
+                        onLoginSuccess() 
+                    }
                     .addOnFailureListener { e ->
                         isLoading = false
-                        errorMessage = "Login gagal: ${e.message}"
+                        val msg = "Login Firebase gagal: ${e.message}"
+                        errorMessage = msg
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                     }
             } catch (e: ApiException) {
                 isLoading = false
-                errorMessage = "Google Sign-In gagal: ${e.statusCode}"
+                val msg = "Google Sign-In gagal: Code ${e.statusCode} - ${e.message}"
+                errorMessage = msg
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             }
         } else {
             isLoading = false
+            Toast.makeText(context, "Login dibatalkan", Toast.LENGTH_SHORT).show()
         }
     }
 
