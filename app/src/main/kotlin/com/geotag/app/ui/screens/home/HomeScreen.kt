@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.geotag.app.data.model.GeoLocation
+import com.geotag.app.ui.components.AppFooter
 import com.geotag.app.util.LocationUtils
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -190,6 +191,11 @@ fun HomeScreen(
                             },
                             onDelete = { viewModel.deleteLocation(location) }
                         )
+                    }
+                    
+                    // Footer
+                    item {
+                        AppFooter(modifier = Modifier.padding(top = 16.dp))
                     }
                 }
             }

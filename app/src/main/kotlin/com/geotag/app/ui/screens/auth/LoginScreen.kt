@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.geotag.app.R
+import com.geotag.app.ui.components.AppFooter
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -122,5 +123,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium
             )
         }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        AppFooter()
     }
 }
