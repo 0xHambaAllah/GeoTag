@@ -14,7 +14,7 @@ fun AppFooter(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 12.dp, horizontal = 16.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(

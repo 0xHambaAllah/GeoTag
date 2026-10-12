@@ -195,7 +195,7 @@ fun HomeScreen(
                     
                     // Footer
                     item {
-                        AppFooter(modifier = Modifier.padding(top = 16.dp))
+                        AppFooter(modifier = Modifier.padding(top = 16.dp, bottom = 80.dp))
                     }
                 }
             }
