@@ -11,12 +11,14 @@ import com.geotag.app.ui.screens.camera.CameraScreen
 import com.geotag.app.ui.screens.detail.DetailScreen
 import com.geotag.app.ui.screens.detail.EditScreen
 import com.geotag.app.ui.screens.home.HomeScreen
+import com.geotag.app.ui.screens.route.RouteScreen
 import com.google.firebase.auth.FirebaseAuth
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
     object Home : Screen("home")
     object Camera : Screen("camera")
+    object Route : Screen("route")
     object Detail : Screen("detail/{locationId}") {
         fun createRoute(locationId: String) = "detail/$locationId"
     }
@@ -48,6 +50,7 @@ fun NavGraph() {
             HomeScreen(
                 onAddClick = { navController.navigate(Screen.Camera.route) },
                 onItemClick = { locationId -> navController.navigate(Screen.Detail.createRoute(locationId)) },
+                onRouteClick = { navController.navigate(Screen.Route.route) },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
@@ -58,6 +61,11 @@ fun NavGraph() {
         composable(Screen.Camera.route) {
             CameraScreen(
                 onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.Route.route) {
+            RouteScreen(
                 onBack = { navController.popBackStack() }
             )
         }

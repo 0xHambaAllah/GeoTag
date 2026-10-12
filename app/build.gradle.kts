@@ -84,6 +84,13 @@ dependencies {
     // ExifInterface
     implementation("androidx.exifinterface:exifinterface:1.3.7")
 
+    // Google Maps Compose
+    implementation("com.google.maps.android:maps-compose:4.3.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+
+    // OkHttp for ImgBB API
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     // Core
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")

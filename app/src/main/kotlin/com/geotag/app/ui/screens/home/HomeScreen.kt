@@ -22,6 +22,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.geotag.app.data.model.GeoLocation
 import com.geotag.app.util.LocationUtils
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.*
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -31,6 +34,7 @@ import java.util.*
 fun HomeScreen(
     onAddClick: () -> Unit,
     onItemClick: (String) -> Unit,
+    onRouteClick: () -> Unit,
     onLogout: () -> Unit,
     viewModel: HomeViewModel = viewModel()
 ) {
@@ -52,6 +56,9 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onRouteClick) {
+                        Icon(Icons.Default.Route, "Buat Rute")
+                    }
                     IconButton(onClick = { viewModel.syncFromRemote() }) {
                         Icon(Icons.Default.Refresh, "Sync")
                     }
@@ -110,6 +117,23 @@ fun HomeScreen(
 
             if (isRefreshing) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+
+            // Google Maps view with markers
+            if (locations.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(250.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    MapView(
+                        locations = locations,
+                        currentLocation = currentLocation,
+                        onMarkerClick = { locationId -> onItemClick(locationId) }
+                    )
+                }
             }
 
             if (locations.isEmpty()) {
@@ -342,4 +366,54 @@ fun LocationCard(
 private fun formatTimestamp(timestamp: Long): String {
     val sdf = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("id"))
     return sdf.format(Date(timestamp))
+}
+
+@Composable
+fun MapView(
+    locations: List<GeoLocation>,
+    currentLocation: android.location.Location?,
+    onMarkerClick: (String) -> Unit
+) {
+    // Calculate center position based on locations or current location
+    val centerPosition = remember(locations, currentLocation) {
+        if (locations.isNotEmpty()) {
+            val avgLat = locations.map { it.latitude }.average()
+            val avgLng = locations.map { it.longitude }.average()
+            LatLng(avgLat, avgLng)
+        } else if (currentLocation != null) {
+            LatLng(currentLocation.latitude, currentLocation.longitude)
+        } else {
+            LatLng(-6.2088, 106.8456) // Default: Jakarta
+        }
+    }
+
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(centerPosition, 12f)
+    }
+
+    GoogleMap(
+        modifier = Modifier.fillMaxSize(),
+        cameraPositionState = cameraPositionState,
+        properties = MapProperties(
+            isMyLocationEnabled = false
+        ),
+        uiSettings = MapUiSettings(
+            zoomControlsEnabled = true,
+            myLocationButtonEnabled = false,
+            mapToolbarEnabled = false
+        )
+    ) {
+        // Add markers for each location
+        locations.forEach { location ->
+            Marker(
+                state = MarkerState(position = LatLng(location.latitude, location.longitude)),
+                title = location.name.ifEmpty { "Tanpa nama" },
+                snippet = location.address.ifEmpty { null },
+                onClick = {
+                    onMarkerClick(location.id)
+                    true
+                }
+            )
+        }
+    }
 }

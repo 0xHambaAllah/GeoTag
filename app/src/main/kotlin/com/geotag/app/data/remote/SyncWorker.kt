@@ -2,6 +2,7 @@ package com.geotag.app.data.remote
 
 import android.content.Context
 import androidx.work.*
+import com.geotag.app.R
 import com.geotag.app.data.local.GeoTagDatabase
 import com.geotag.app.util.PhotoUtils
 import java.io.File
@@ -12,6 +13,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val userId = firebase.currentUserId ?: return Result.failure()
         val db = GeoTagDatabase.getDatabase(applicationContext)
         val dao = db.locationDao()
+        val imgbbApiKey = applicationContext.getString(R.string.imgbb_api_key)
 
         val unsyncedLocations = dao.getUnsyncedLocations(userId)
 
@@ -22,7 +24,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                     val file = File(location.photoLocalPath)
                     if (file.exists()) {
                         val compressed = PhotoUtils.compressPhoto(applicationContext, file)
-                        photoUrl = firebase.uploadPhoto(userId, location.id, compressed)
+                        photoUrl = firebase.uploadPhoto(userId, location.id, compressed, imgbbApiKey)
                     }
                 }
                 val synced = location.copy(photoUrl = photoUrl, isSynced = true)

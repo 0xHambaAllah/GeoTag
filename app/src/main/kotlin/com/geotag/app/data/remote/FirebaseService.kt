@@ -30,10 +30,46 @@ class FirebaseService {
         auth.signOut()
     }
 
-    suspend fun uploadPhoto(userId: String, locationId: String, photoFile: File): String {
-        val ref = storage.reference.child("photos/$userId/$locationId.jpg")
-        ref.putFile(Uri.fromFile(photoFile)).await()
-        return ref.downloadUrl.await().toString()
+    suspend fun uploadPhoto(userId: String, locationId: String, photoFile: File, apiKey: String): String {
+        // Upload to ImgBB API instead of Firebase Storage
+        return try {
+            val client = okhttp3.OkHttpClient()
+            val requestBody = okhttp3.MultipartBody.Builder()
+                .setType(okhttp3.MultipartBody.FORM)
+                .addFormDataPart("key", apiKey)
+                .addFormDataPart(
+                    "image",
+                    photoFile.name,
+                    okhttp3.RequestBody.create(
+                        okhttp3.MediaType.parse("image/jpeg"),
+                        photoFile
+                    )
+                )
+                .build()
+            
+            val request = okhttp3.Request.Builder()
+                .url("https://api.imgbb.com/1/upload")
+                .post(requestBody)
+                .build()
+            
+            val response = client.newCall(request).execute()
+            val responseBody = response.body()?.string() ?: throw Exception("Empty response")
+            
+            if (!response.isSuccessful) {
+                throw Exception("Upload failed: ${response.code()}")
+            }
+            
+            // Parse JSON response to extract image URL
+            val json = org.json.JSONObject(responseBody)
+            if (json.getBoolean("success")) {
+                json.getJSONObject("data").getString("url")
+            } else {
+                throw Exception("ImgBB upload failed")
+            }
+        } catch (e: Exception) {
+            // Fallback: return empty string or throw
+            throw Exception("Photo upload failed: ${e.message}")
+        }
     }
 
     suspend fun saveLocation(location: GeoLocation) {
