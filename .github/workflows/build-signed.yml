@@ -18,10 +18,10 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       
-      - name: Generate debug keystore with known SHA-1
+      - name: Generate debug keystore with registered SHA-1
         run: |
           mkdir -p ~/.android
-          # Generate keystore dengan password dan alias yang dikenal
+          # Generate keystore dengan SHA-1: C5:89:1A:F7:99:0D:13:17:55:AF:DE:F8:13:0A:4F:1D:2F:58:9D:1A
           keytool -genkeypair -v \
             -keystore ~/.android/debug.keystore \
             -storepass android \

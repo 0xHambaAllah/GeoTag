@@ -15,11 +15,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "323244718562-pmtct5vbm2ia7lc8aum1hn8merfohpuj.apps.googleusercontent.com",
+          "client_id": "323244718562-jdje7te3iabftppf09cltbivc7re5ceq.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.geotag.app",
-            "certificate_hash": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+            "certificate_hash": "c5891af7990d131755afdef8130a4f1d2f589d1a"
           }
         },
         {
