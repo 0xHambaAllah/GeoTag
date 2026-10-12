@@ -3,8 +3,7 @@ package com.geotag.app.data.remote
 import android.net.Uri
 import com.geotag.app.data.model.GeoLocation
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.DataSnapshot
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
 import okhttp3.MediaType.Companion.toMediaType
@@ -12,7 +11,7 @@ import java.io.File
 
 class FirebaseService {
     private val auth = FirebaseAuth.getInstance()
-    private val database = FirebaseDatabase.getInstance()
+    private val firestore = FirebaseFirestore.getInstance()
     private val storage = FirebaseStorage.getInstance()
 
     val currentUserId: String?
@@ -74,64 +73,37 @@ class FirebaseService {
     }
 
     suspend fun saveLocation(location: GeoLocation) {
-        database.reference
-            .child("locations")
-            .child(location.userId)
-            .child(location.id)
-            .setValue(mapOf(
-                "id" to location.id,
-                "userId" to location.userId,
-                "name" to location.name,
-                "phoneNumber" to location.phoneNumber,
-                "photoUrl" to location.photoUrl,
-                "latitude" to location.latitude,
-                "longitude" to location.longitude,
-                "address" to location.address,
-                "timestamp" to location.timestamp
-            )).await()
+        firestore.collection("locations")
+            .document(location.id)
+            .set(location)
+            .await()
     }
 
     suspend fun deleteLocation(locationId: String, userId: String) {
-        database.reference
-            .child("locations")
-            .child(userId)
-            .child(locationId)
-            .removeValue().await()
+        firestore.collection("locations")
+            .document(locationId)
+            .delete()
+            .await()
         try {
             storage.reference.child("photos/$userId/$locationId.jpg").delete().await()
         } catch (_: Exception) {}
     }
 
     suspend fun getRemoteLocations(userId: String): List<GeoLocation> {
-        val snapshot = database.reference
-            .child("locations")
-            .child(userId)
+        return firestore.collection("locations")
+            .whereEqualTo("userId", userId)
             .get()
             .await()
-        return snapshot.children.mapNotNull { child ->
-            try {
-                GeoLocation(
-                    id = child.child("id").getValue(String::class.java) ?: return@mapNotNull null,
-                    userId = child.child("userId").getValue(String::class.java) ?: "",
-                    name = child.child("name").getValue(String::class.java) ?: "",
-                    phoneNumber = child.child("phoneNumber").getValue(String::class.java) ?: "",
-                    photoUrl = child.child("photoUrl").getValue(String::class.java) ?: "",
-                    latitude = child.child("latitude").getValue(Double::class.java) ?: 0.0,
-                    longitude = child.child("longitude").getValue(Double::class.java) ?: 0.0,
-                    address = child.child("address").getValue(String::class.java) ?: "",
-                    timestamp = child.child("timestamp").getValue(Long::class.java) ?: 0L,
-                    isSynced = true
-                )
-            } catch (_: Exception) { null }
-        }
+            .documents
+            .mapNotNull { doc ->
+                doc.toObject(GeoLocation::class.java)?.copy(isSynced = true)
+            }
     }
 
     suspend fun updateLocation(location: GeoLocation) {
-        database.reference
-            .child("locations")
-            .child(location.userId)
-            .child(location.id)
-            .updateChildren(mapOf(
+        firestore.collection("locations")
+            .document(location.id)
+            .update(mapOf(
                 "name" to location.name,
                 "phoneNumber" to location.phoneNumber,
                 "address" to location.address
