@@ -114,7 +114,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 onClick = {
                     isLoading = true
                     errorMessage = null
+                    Toast.makeText(context, "Membuka Google Sign-In...", Toast.LENGTH_SHORT).show()
                     googleSignInClient.signOut().addOnCompleteListener {
+                        Toast.makeText(context, "Sign out selesai, launching dialog...", Toast.LENGTH_SHORT).show()
                         launcher.launch(googleSignInClient.signInIntent)
                     }
                 },
