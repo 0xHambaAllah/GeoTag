@@ -466,24 +466,8 @@ fun MapView(
     currentLocation: android.location.Location?,
     onMarkerClick: (String) -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     val latestOnMarkerClick by rememberUpdatedState(onMarkerClick)
-    var mapViewRef by remember { mutableStateOf<org.osmdroid.views.MapView?>(null) }
     var hasCentered by remember { mutableStateOf(false) }
-
-    // Lifecycle: resume/pause tile loading mengikuti activity
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            when (event) {
-                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> mapViewRef?.onResume()
-                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> mapViewRef?.onPause()
-                else -> {}
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
     // Hitung posisi tengah & zoom dari data
     fun computeCenter(): Triple<Double, Double, Double> {
@@ -511,11 +495,9 @@ fun MapView(
                 org.osmdroid.views.MapView(ctx).apply {
                     setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
-                    isTilesScaledToDpi = true
                     val (lat, lng, zoom) = computeCenter()
                     controller.setZoom(zoom)
                     controller.setCenter(org.osmdroid.util.GeoPoint(lat, lng))
-                    mapViewRef = this
                 }
             },
             update = { mapView ->
