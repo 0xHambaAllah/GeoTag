@@ -172,20 +172,41 @@ fun HomeScreen(
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
 
-            // Google Maps view with markers
-            if (locations.isNotEmpty()) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(250.dp)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
+            // Google Maps view with markers (always show, even when empty)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(250.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                if (locations.isNotEmpty() || currentLocation != null) {
                     MapView(
                         locations = locations,
                         currentLocation = currentLocation,
                         onMarkerClick = { locationId -> onItemClick(locationId) }
                     )
+                } else {
+                    // Placeholder when no data
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.Map,
+                                null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Belum ada lokasi tersimpan",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
 
@@ -432,6 +453,8 @@ fun MapView(
     currentLocation: android.location.Location?,
     onMarkerClick: (String) -> Unit
 ) {
+    var mapError by remember { mutableStateOf<String?>(null) }
+    
     // Calculate center position based on locations or current location
     val centerPosition = remember(locations, currentLocation) {
         if (locations.isNotEmpty()) {
@@ -452,49 +475,80 @@ fun MapView(
     // Update camera when locations change
     LaunchedEffect(locations, centerPosition) {
         if (locations.isNotEmpty()) {
-            cameraPositionState.animate(
-                update = CameraUpdateFactory.newLatLngZoom(centerPosition, 15f),
-                durationMs = 1000
-            )
+            try {
+                cameraPositionState.animate(
+                    update = CameraUpdateFactory.newLatLngZoom(centerPosition, 15f),
+                    durationMs = 1000
+                )
+            } catch (e: Exception) {
+                mapError = "Animasi peta error: ${e.message}"
+            }
         }
     }
 
-    GoogleMap(
-        modifier = Modifier.fillMaxSize(),
-        cameraPositionState = cameraPositionState,
-        properties = MapProperties(
-            isMyLocationEnabled = currentLocation != null,
-            mapType = MapType.NORMAL
-        ),
-        uiSettings = MapUiSettings(
-            zoomControlsEnabled = true,
-            myLocationButtonEnabled = currentLocation != null,
-            mapToolbarEnabled = true,
-            compassEnabled = true,
-            zoomGesturesEnabled = true,
-            scrollGesturesEnabled = true
-        )
-    ) {
-        // Add markers for each location
-        locations.forEach { location ->
-            Marker(
-                state = rememberMarkerState(position = LatLng(location.latitude, location.longitude)),
-                title = location.name.ifEmpty { "Lokasi Foto" },
-                snippet = "${location.address.take(50)}...",
-                onClick = {
-                    onMarkerClick(location.id)
-                    true
-                }
-            )
+    Box(modifier = Modifier.fillMaxSize()) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = cameraPositionState,
+            properties = MapProperties(
+                isMyLocationEnabled = false, // Disable to avoid permission issues
+                mapType = MapType.NORMAL
+            ),
+            uiSettings = MapUiSettings(
+                zoomControlsEnabled = true,
+                myLocationButtonEnabled = false,
+                mapToolbarEnabled = true,
+                compassEnabled = true,
+                zoomGesturesEnabled = true,
+                scrollGesturesEnabled = true
+            ),
+            onMapLoaded = {
+                mapError = null
+            }
+        ) {
+            // Add markers for each location
+            locations.forEach { location ->
+                Marker(
+                    state = rememberMarkerState(position = LatLng(location.latitude, location.longitude)),
+                    title = location.name.ifEmpty { "Lokasi Foto" },
+                    snippet = "${location.address.take(50)}${if (location.address.length > 50) "..." else ""}",
+                    onClick = {
+                        onMarkerClick(location.id)
+                        true
+                    }
+                )
+            }
+            
+            // Show current location marker if available and no saved locations
+            if (locations.isEmpty() && currentLocation != null) {
+                Marker(
+                    state = rememberMarkerState(position = LatLng(currentLocation.latitude, currentLocation.longitude)),
+                    title = "Lokasi Saya",
+                    snippet = "Posisi saat ini"
+                )
+            }
         }
         
-        // Show current location marker if available and no saved locations
-        if (locations.isEmpty() && currentLocation != null) {
-            Marker(
-                state = rememberMarkerState(position = LatLng(currentLocation.latitude, currentLocation.longitude)),
-                title = "Lokasi Saya",
-                snippet = "Posisi saat ini"
-            )
+        // Show error overlay if any
+        mapError?.let { error ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .background(
+                            MaterialTheme.colorScheme.errorContainer,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(8.dp)
+                )
+            }
         }
     }
 }
