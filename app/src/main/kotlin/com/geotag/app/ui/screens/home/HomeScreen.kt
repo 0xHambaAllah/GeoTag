@@ -27,7 +27,9 @@ import com.geotag.app.data.model.GeoLocation
 import com.geotag.app.ui.components.AppFooter
 import com.geotag.app.util.LocationUtils
 import androidx.compose.ui.text.style.TextAlign
-import android.content.Context
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.*
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -430,93 +432,62 @@ fun MapView(
     currentLocation: android.location.Location?,
     onMarkerClick: (String) -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    
     // Calculate center position based on locations or current location
-    val centerGeoPoint = androidx.compose.runtime.remember(locations, currentLocation) {
+    val centerPosition = remember(locations, currentLocation) {
         if (locations.isNotEmpty()) {
             val avgLat = locations.map { it.latitude }.average()
             val avgLng = locations.map { it.longitude }.average()
-            org.osmdroid.util.GeoPoint(avgLat, avgLng)
+            LatLng(avgLat, avgLng)
         } else if (currentLocation != null) {
-            org.osmdroid.util.GeoPoint(currentLocation.latitude, currentLocation.longitude)
+            LatLng(currentLocation.latitude, currentLocation.longitude)
         } else {
-            org.osmdroid.util.GeoPoint(-6.2088, 106.8456) // Default: Jakarta
+            LatLng(-6.2088, 106.8456) // Default: Jakarta
         }
     }
 
-    androidx.compose.ui.viewinterop.AndroidView(
-        factory = { ctx ->
-            org.osmdroid.views.MapView(ctx).apply {
-                // Configure OpenStreetMap
-                org.osmdroid.config.Configuration.getInstance().userAgentValue = ctx.packageName
-                setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
-                
-                controller.setZoom(12.0)
-                controller.setCenter(centerGeoPoint)
-                
-                // Add markers for each location
-                locations.forEach { location ->
-                    val marker = org.osmdroid.views.overlay.Marker(this)
-                    marker.position = org.osmdroid.util.GeoPoint(location.latitude, location.longitude)
-                    marker.title = location.name.ifEmpty { "Tanpa nama" }
-                    if (location.address.isNotEmpty()) {
-                        marker.subDescription = location.address
-                    }
-                    marker.setOnMarkerClickListener { _, _ ->
-                        onMarkerClick(location.id)
-                        true
-                    }
-                    overlays.add(marker)
-                }
-                
-                // Show current location marker if available and no saved locations
-                if (locations.isEmpty() && currentLocation != null) {
-                    val currentMarker = org.osmdroid.views.overlay.Marker(this)
-                    currentMarker.position = org.osmdroid.util.GeoPoint(currentLocation.latitude, currentLocation.longitude)
-                    currentMarker.title = "Lokasi Saya"
-                    currentMarker.subDescription = "Posisi saat ini"
-                    overlays.add(currentMarker)
-                }
-                
-                // Enable zoom controls
-                setMultiTouchControls(true)
-                zoomController.setVisibility(org.osmdroid.views.MapView.LayoutParams.LEFT)
-            }
-        },
-        modifier = androidx.compose.ui.Modifier.fillMaxSize(),
-        update = { mapView ->
-            // Update map when locations change
-            mapView.overlays.clear()
-            
-            locations.forEach { location ->
-                val marker = org.osmdroid.views.overlay.Marker(mapView)
-                marker.position = org.osmdroid.util.GeoPoint(location.latitude, location.longitude)
-                marker.title = location.name.ifEmpty { "Tanpa nama" }
-                if (location.address.isNotEmpty()) {
-                    marker.subDescription = location.address
-                }
-                marker.setOnMarkerClickListener { _, _ ->
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(centerPosition, 12f)
+    }
+    
+    // Update camera when locations change
+    LaunchedEffect(locations, centerPosition) {
+        if (locations.isNotEmpty()) {
+            cameraPositionState.position = CameraPosition.fromLatLngZoom(centerPosition, 12f)
+        }
+    }
+
+    GoogleMap(
+        modifier = Modifier.fillMaxSize(),
+        cameraPositionState = cameraPositionState,
+        properties = MapProperties(
+            isMyLocationEnabled = false
+        ),
+        uiSettings = MapUiSettings(
+            zoomControlsEnabled = true,
+            myLocationButtonEnabled = false,
+            mapToolbarEnabled = false
+        )
+    ) {
+        // Add markers for each location
+        locations.forEach { location ->
+            Marker(
+                state = rememberMarkerState(position = LatLng(location.latitude, location.longitude)),
+                title = location.name.ifEmpty { "Tanpa nama" },
+                snippet = location.address.ifEmpty { null },
+                onClick = {
                     onMarkerClick(location.id)
                     true
                 }
-                mapView.overlays.add(marker)
-            }
-            
-            if (locations.isEmpty() && currentLocation != null) {
-                val currentMarker = org.osmdroid.views.overlay.Marker(mapView)
-                currentMarker.position = org.osmdroid.util.GeoPoint(currentLocation.latitude, currentLocation.longitude)
-                currentMarker.title = "Lokasi Saya"
-                currentMarker.subDescription = "Posisi saat ini"
-                mapView.overlays.add(currentMarker)
-            }
-            
-            // Update center position if locations changed
-            if (locations.isNotEmpty() || currentLocation != null) {
-                mapView.controller.setCenter(centerGeoPoint)
-            }
-            
-            mapView.invalidate()
+            )
         }
-    )
+        
+        // Show current location marker if available and no saved locations
+        if (locations.isEmpty() && currentLocation != null) {
+            Marker(
+                state = rememberMarkerState(position = LatLng(currentLocation.latitude, currentLocation.longitude)),
+                title = "Lokasi Saya",
+                snippet = "Posisi saat ini"
+            )
+        }
+    }
 }
