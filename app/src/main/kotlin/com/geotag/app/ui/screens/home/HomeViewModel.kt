@@ -47,7 +47,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         refreshLocation()
-        syncFromRemote()
+        // Auto restore data saat login
+        viewModelScope.launch {
+            _userId.collect { uid ->
+                if (uid != null) {
+                    // User baru login, sync data dari Firebase
+                    syncFromRemote()
+                }
+            }
+        }
     }
 
     fun onSearchQueryChange(query: String) {
@@ -96,41 +104,50 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 val latLong = FloatArray(2)
                 val hasGps = exif.getLatLong(latLong)
                 
+                val latitude: Double
+                val longitude: Double
+                
                 if (hasGps) {
-                    // Photo has GPS data - save directly
-                    val latitude = latLong[0].toDouble()
-                    val longitude = latLong[1].toDouble()
-                    val address = LocationUtils.getAddressFromLocation(
-                        getApplication(),
-                        latitude,
-                        longitude
-                    )
-                    
-                    val uid = _userId.value ?: throw Exception("User not logged in")
-                    val geoLocation = GeoLocation(
-                        userId = uid,
-                        name = "",
-                        phoneNumber = "",
-                        photoLocalPath = photoFile.absolutePath,
-                        latitude = latitude,
-                        longitude = longitude,
-                        address = address,
-                        timestamp = System.currentTimeMillis(),
-                        isSynced = false
-                    )
-                    
-                    repository.saveLocation(geoLocation)
-                    Toast.makeText(context, "Foto dari galeri berhasil disimpan", Toast.LENGTH_SHORT).show()
+                    // Photo has GPS data - use it
+                    latitude = latLong[0].toDouble()
+                    longitude = latLong[1].toDouble()
                 } else {
-                    // No GPS data - show message and delete the copied file
-                    photoFile.delete()
-                    Toast.makeText(
-                        context,
-                        "Foto tidak memiliki data GPS. Gunakan kamera untuk mengambil foto baru.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    onNavigateToCamera()
+                    // No GPS data - use current location
+                    val currentLoc = _currentLocation.value
+                    if (currentLoc == null) {
+                        photoFile.delete()
+                        Toast.makeText(
+                            context,
+                            "Tidak bisa mendapatkan lokasi saat ini. Aktifkan GPS dan coba lagi.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return@launch
+                    }
+                    latitude = currentLoc.latitude
+                    longitude = currentLoc.longitude
                 }
+                
+                val address = LocationUtils.getAddressFromLocation(
+                    getApplication(),
+                    latitude,
+                    longitude
+                )
+                
+                val uid = _userId.value ?: throw Exception("User not logged in")
+                val geoLocation = GeoLocation(
+                    userId = uid,
+                    name = "",
+                    phoneNumber = "",
+                    photoLocalPath = photoFile.absolutePath,
+                    latitude = latitude,
+                    longitude = longitude,
+                    address = address,
+                    timestamp = System.currentTimeMillis(),
+                    isSynced = false
+                )
+                
+                repository.saveLocation(geoLocation)
+                Toast.makeText(context, "Foto dari galeri berhasil disimpan", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(
                     context,

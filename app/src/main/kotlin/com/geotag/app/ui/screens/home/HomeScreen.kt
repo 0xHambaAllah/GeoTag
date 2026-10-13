@@ -445,13 +445,16 @@ fun MapView(
     }
 
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(centerPosition, 12f)
+        position = CameraPosition.fromLatLngZoom(centerPosition, 15f)
     }
     
     // Update camera when locations change
     LaunchedEffect(locations, centerPosition) {
         if (locations.isNotEmpty()) {
-            cameraPositionState.position = CameraPosition.fromLatLngZoom(centerPosition, 12f)
+            cameraPositionState.animate(
+                update = CameraUpdateFactory.newLatLngZoom(centerPosition, 15f),
+                durationMs = 1000
+            )
         }
     }
 
@@ -459,20 +462,24 @@ fun MapView(
         modifier = Modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
         properties = MapProperties(
-            isMyLocationEnabled = false
+            isMyLocationEnabled = currentLocation != null,
+            mapType = MapType.NORMAL
         ),
         uiSettings = MapUiSettings(
             zoomControlsEnabled = true,
-            myLocationButtonEnabled = false,
-            mapToolbarEnabled = false
+            myLocationButtonEnabled = currentLocation != null,
+            mapToolbarEnabled = true,
+            compassEnabled = true,
+            zoomGesturesEnabled = true,
+            scrollGesturesEnabled = true
         )
     ) {
         // Add markers for each location
         locations.forEach { location ->
             Marker(
                 state = rememberMarkerState(position = LatLng(location.latitude, location.longitude)),
-                title = location.name.ifEmpty { "Tanpa nama" },
-                snippet = location.address.ifEmpty { null },
+                title = location.name.ifEmpty { "Lokasi Foto" },
+                snippet = "${location.address.take(50)}...",
                 onClick = {
                     onMarkerClick(location.id)
                     true
