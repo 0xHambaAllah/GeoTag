@@ -467,115 +467,96 @@ fun MapView(
     onMarkerClick: (String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    
-    // Posisi tengah peta: rata-rata lokasi tersimpan / lokasi saat ini / Jakarta
-    val centerLat: Double
-    val centerLng: Double
-    if (locations.isNotEmpty()) {
-        centerLat = locations.map { it.latitude }.average()
-        centerLng = locations.map { it.longitude }.average()
-    } else if (currentLocation != null) {
-        centerLat = currentLocation.latitude
-        centerLng = currentLocation.longitude
-    } else {
-        centerLat = -6.2088
-        centerLng = 106.8456 // Default: Jakarta
-    }
-
-    // Escape string agar aman disisipkan ke JavaScript
-    fun escJs(s: String): String = s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
-
-    // Data marker lokasi sebagai JS array
-    val markersJs = remember(locations) {
-        locations.joinToString(",\n") { loc ->
-            val nama = escJs(loc.name.ifEmpty { "Tanpa nama" })
-            val alamat = escJs(loc.address.take(80))
-            "{id:'${loc.id}',lat:${loc.latitude},lng:${loc.longitude},name:'$nama',addr:'$alamat'}"
-        }
-    }
-    val currentJs = remember(currentLocation) {
-        currentLocation?.let { "{lat:${it.latitude},lng:${it.longitude}}" } ?: "null"
-    }
-
-    // HTML peta interaktif: Leaflet + OpenStreetMap (gratis, tanpa API key)
-    val mapHtml = remember(markersJs, currentJs, centerLat, centerLng) {
-        """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-            <style>
-                html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden;}
-                #map{position:absolute;top:0;left:0;right:0;bottom:0;background:#aad3df;}
-            </style>
-        </head>
-        <body>
-            <div id="map"></div>
-            <script>
-                var map = L.map('map',{zoomControl:true}).setView([$centerLat,$centerLng],14);
-                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
-                    maxZoom:19,
-                    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                }).addTo(map);
-                var markers = [$markersJs];
-                markers.forEach(function(m){
-                    var pop = '<b>'+m.name+'</b><br/>'+m.addr;
-                    L.marker([m.lat,m.lng]).addTo(map).bindPopup(pop)
-                        .on('click',function(){ if(window.Android){ window.Android.onMarkerClick(m.id); } });
-                });
-                var cur = $currentJs;
-                if(cur){
-                    L.circleMarker([cur.lat,cur.lng],{radius:9,color:'#1a73e8',fillColor:'#1a73e8',fillOpacity:0.9})
-                        .addTo(map).bindPopup('Lokasi saya');
-                }
-                if(markers.length>0){
-                    var grp = L.featureGroup(markers.map(function(m){ return L.marker([m.lat,m.lng]); }));
-                    map.fitBounds(grp.getBounds().pad(0.25));
-                }
-            </script>
-        </body>
-        </html>
-        """.trimIndent()
-    }
-
-    // Bridge klik marker WebView -> Compose (dijalankan di main thread)
     val latestOnMarkerClick by rememberUpdatedState(onMarkerClick)
-    val mapBridge = remember {
-        object {
-            private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-            @android.webkit.JavascriptInterface
-            fun onMarkerClick(id: String) {
-                handler.post { latestOnMarkerClick(id) }
+    var mapViewRef by remember { mutableStateOf<org.osmdroid.views.MapView?>(null) }
+    var hasCentered by remember { mutableStateOf(false) }
+
+    // Lifecycle: resume/pause tile loading mengikuti activity
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> mapViewRef?.onResume()
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> mapViewRef?.onPause()
+                else -> {}
             }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Hitung posisi tengah & zoom dari data
+    fun computeCenter(): Triple<Double, Double, Double> {
+        return when {
+            locations.isNotEmpty() -> Triple(
+                locations.map { it.latitude }.average(),
+                locations.map { it.longitude }.average(),
+                if (locations.size == 1) 16.0 else 13.0
+            )
+            currentLocation != null -> Triple(
+                currentLocation.latitude, currentLocation.longitude, 15.0
+            )
+            else -> Triple(-6.2088, 106.8456, 12.0) // Default: Jakarta
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Peta interaktif Leaflet + OSM; reload hanya saat data berubah
-        var lastLoadedHtml by remember { mutableStateOf<String?>(null) }
+        // Peta native osmdroid (OpenStreetMap, tanpa WebView & tanpa API key)
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { ctx ->
-                android.webkit.WebView(ctx).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.loadWithOverviewMode = true
-                    settings.useWideViewPort = true
-                    addJavascriptInterface(mapBridge, "Android")
+                // User agent wajib sesuai OSM tile usage policy
+                org.osmdroid.tileprovider.constants.OpenStreetMapTileProviderConstants.setUserAgentValue(
+                    ctx.packageName
+                )
+                org.osmdroid.views.MapView(ctx).apply {
+                    setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+                    setMultiTouchControls(true)
+                    isTilesScaledToDpi = true
+                    val (lat, lng, zoom) = computeCenter()
+                    controller.setZoom(zoom)
+                    controller.setCenter(org.osmdroid.util.GeoPoint(lat, lng))
+                    mapViewRef = this
                 }
             },
-            update = { webView ->
-                if (lastLoadedHtml != mapHtml) {
-                    lastLoadedHtml = mapHtml
-                    webView.loadDataWithBaseURL(
-                        "https://www.openstreetmap.org",
-                        mapHtml, "text/html", "UTF-8", null
-                    )
+            update = { mapView ->
+                // Refresh marker setiap data berubah
+                mapView.overlays.clear()
+                locations.forEach { loc ->
+                    val marker = org.osmdroid.views.overlay.Marker(mapView).apply {
+                        position = org.osmdroid.util.GeoPoint(loc.latitude, loc.longitude)
+                        title = loc.name.ifEmpty { "Tanpa nama" }
+                        snippet = loc.address.take(80)
+                        setAnchor(
+                            org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                            org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
+                        )
+                        setOnMarkerClickListener { _, _ ->
+                            latestOnMarkerClick(loc.id)
+                            true
+                        }
+                    }
+                    mapView.overlays.add(marker)
                 }
+                currentLocation?.let {
+                    val me = org.osmdroid.views.overlay.Marker(mapView).apply {
+                        position = org.osmdroid.util.GeoPoint(it.latitude, it.longitude)
+                        title = "Lokasi saya"
+                    }
+                    mapView.overlays.add(me)
+                }
+                // Center otomatis sekali saat data nyata pertama tersedia
+                // (tidak mengganggu saat user sedang menggeser/zoom peta)
+                if (!hasCentered && (locations.isNotEmpty() || currentLocation != null)) {
+                    hasCentered = true
+                    val (lat, lng, zoom) = computeCenter()
+                    mapView.controller.setZoom(zoom)
+                    mapView.controller.setCenter(org.osmdroid.util.GeoPoint(lat, lng))
+                }
+                mapView.invalidate()
             },
             modifier = Modifier.fillMaxSize()
         )
+
 
         
         // Overlay with location count and markers info
