@@ -32,42 +32,37 @@ class FirebaseService {
         auth.signOut()
     }
 
-    suspend fun uploadPhoto(userId: String, locationId: String, photoFile: File, apiKey: String): String {
-        // Upload to ImgBB (free, no credit card needed)
+    suspend fun uploadPhoto(userId: String, locationId: String, photoFile: File, cloudName: String, uploadPreset: String): String {
+        // Upload to Cloudinary (free, no credit card needed)
         return try {
             val client = okhttp3.OkHttpClient()
-            val base64 = android.util.Base64.encodeToString(
-                photoFile.readBytes(),
-                android.util.Base64.NO_WRAP
-            )
-            
-            val requestBody = okhttp3.FormBody.Builder()
-                .add("key", apiKey)
-                .add("image", base64)
-                .add("name", locationId)
+
+            val requestBody = okhttp3.MultipartBody.Builder()
+                .setType(okhttp3.MultipartBody.FORM)
+                .addFormDataPart("upload_preset", uploadPreset)
+                .addFormDataPart("public_id", locationId)
+                .addFormDataPart(
+                    "file", photoFile.name,
+                    okhttp3.RequestBody.create("image/jpeg".toMediaType(), photoFile)
+                )
                 .build()
-            
+
             val request = okhttp3.Request.Builder()
-                .url("https://api.imgbb.com/1/upload")
+                .url("https://api.cloudinary.com/v1_1/$cloudName/image/upload")
                 .post(requestBody)
                 .build()
-            
+
             val response = withContext(Dispatchers.IO) {
                 client.newCall(request).execute()
             }
-            
+
             if (response.isSuccessful) {
                 val jsonResponse = org.json.JSONObject(response.body?.string() ?: "{}")
-                val data = jsonResponse.getJSONObject("data")
-                // PENTING: data.url adalah halaman viewer (HTML), bukan file gambar.
-                // Pakai display_url (link langsung ke gambar) agar bisa dibuka Coil.
-                val imageUrl = data.optString("display_url").ifEmpty {
-                    data.optJSONObject("image")?.optString("url").orEmpty()
-                }
-                android.util.Log.d("FirebaseService", "Uploaded to ImgBB: $imageUrl")
+                val imageUrl = jsonResponse.optString("secure_url")
+                android.util.Log.d("FirebaseService", "Uploaded to Cloudinary: $imageUrl")
                 imageUrl
             } else {
-                android.util.Log.e("FirebaseService", "ImgBB upload failed: ${response.code}")
+                android.util.Log.e("FirebaseService", "Cloudinary upload failed: ${response.code}")
                 ""
             }
         } catch (e: Exception) {
@@ -78,7 +73,7 @@ class FirebaseService {
     }
 
     suspend fun downloadPhoto(photoUrl: String, destinationFile: File): Boolean {
-        // Download dari URL langsung ImgBB (display_url)
+        // Download dari URL langsung Cloudinary
         return try {
             val client = okhttp3.OkHttpClient()
             val request = okhttp3.Request.Builder()
@@ -119,7 +114,7 @@ class FirebaseService {
             .document(locationId)
             .delete()
             .await()
-        // ImgBB photos don't need deletion (permanent links)
+        // Cloudinary photos don't need deletion (permanent links)
     }
 
     suspend fun getRemoteLocations(userId: String): List<GeoLocation> {

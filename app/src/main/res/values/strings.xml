@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">GeoTag</string>
     <string name="default_web_client_id">323244718562-2d3i16ub8pis2b8e29g2h6rgnmubij1a.apps.googleusercontent.com</string>
-    <string name="imgbb_api_key">d65f4f9357fcdd8dce816040b4764ba2</string>
+    <string name="cloudinary_cloud_name">Oxhausbklanjsoosx</string>
+    <string name="cloudinary_upload_preset">geotag_unsigned</string>
     <string name="google_maps_key">YOUR_MAPS_API_KEY_HERE</string>
 </resources>

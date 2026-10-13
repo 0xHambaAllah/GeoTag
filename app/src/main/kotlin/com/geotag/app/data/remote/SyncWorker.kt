@@ -36,9 +36,10 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                         val file = File(location.photoLocalPath)
                         if (file.exists()) {
                             val compressed = PhotoUtils.compressPhoto(applicationContext, file)
-                            // Upload to ImgBB (free, no credit card needed)
-                            val apiKey = "d65f4f9357fcdd8dce816040b4764ba2"
-                            photoUrl = firebase.uploadPhoto(userId, location.id, compressed, apiKey)
+                            // Upload to Cloudinary (free, no credit card needed)
+                            val cloudName = "Oxhausbklanjsoosx"
+                            val uploadPreset = "geotag_unsigned"
+                            photoUrl = firebase.uploadPhoto(userId, location.id, compressed, cloudName, uploadPreset)
                             android.util.Log.d("SyncWorker", "Uploaded photo for ${location.id}")
                         }
                     }
