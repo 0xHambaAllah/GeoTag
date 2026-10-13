@@ -482,20 +482,36 @@ fun MapView(
     }
     
     Box(modifier = Modifier.fillMaxSize()) {
-        // Street View using WebView (no API key needed)
+        // Google Maps Embed in iframe via WebView
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { ctx ->
                 android.webkit.WebView(ctx).apply {
                     settings.javaScriptEnabled = true
                     settings.loadWithOverviewMode = true
                     settings.useWideViewPort = true
+                    settings.domStorageEnabled = true
                     
                     val lat = centerPosition.first
                     val lng = centerPosition.second
                     
-                    // Load Google Maps embed (works without API key for simple view)
-                    val mapUrl = "https://maps.google.com/maps?q=$lat,$lng&t=&z=15&ie=UTF8&iwloc=&output=embed"
-                    loadUrl(mapUrl)
+                    // Wrap embed URL in HTML iframe
+                    val html = """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <style>
+                                body { margin: 0; padding: 0; }
+                                iframe { width: 100%; height: 100vh; border: 0; }
+                            </style>
+                        </head>
+                        <body>
+                            <iframe src="https://maps.google.com/maps?q=$lat,$lng&t=&z=15&ie=UTF8&iwloc=&output=embed"></iframe>
+                        </body>
+                        </html>
+                    """.trimIndent()
+                    
+                    loadDataWithBaseURL("https://maps.google.com", html, "text/html", "UTF-8", null)
                 }
             },
             modifier = Modifier.fillMaxSize()

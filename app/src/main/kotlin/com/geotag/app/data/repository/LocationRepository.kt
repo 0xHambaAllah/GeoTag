@@ -47,22 +47,41 @@ class LocationRepository(private val context: Context) {
     suspend fun syncFromRemote(userId: String) {
         try {
             val remoteLocations = firebase.getRemoteLocations(userId)
+            var downloadedCount = 0
+            
             for (remote in remoteLocations) {
                 val local = dao.getLocationById(remote.id)
                 if (local == null) {
                     // Download photo from ImgBB if URL exists
                     var localPath = remote.photoLocalPath
-                    if (remote.photoUrl.isNotEmpty() && remote.photoLocalPath.isEmpty()) {
+                    if (remote.photoUrl.isNotEmpty()) {
                         try {
                             localPath = downloadPhoto(remote.photoUrl, remote.id)
+                            downloadedCount++
                         } catch (e: Exception) {
                             e.printStackTrace()
+                            android.util.Log.e("LocationRepository", "Failed to download photo: ${e.message}")
                         }
                     }
                     dao.insertLocation(remote.copy(photoLocalPath = localPath))
                 }
             }
-        } catch (_: Exception) {}
+            
+            if (downloadedCount > 0) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Restore selesai: $downloadedCount foto berhasil didownload",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("LocationRepository", "Sync failed: ${e.message}")
+            android.widget.Toast.makeText(
+                context,
+                "Restore gagal: ${e.message}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
     }
     
     private suspend fun downloadPhoto(url: String, locationId: String): String {
