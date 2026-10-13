@@ -27,10 +27,6 @@ import coil.compose.AsyncImage
 import com.geotag.app.data.model.GeoLocation
 import com.geotag.app.ui.components.AppFooter
 import com.geotag.app.util.LocationUtils
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.*
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -470,134 +466,94 @@ fun MapView(
     currentLocation: android.location.Location?,
     onMarkerClick: (String) -> Unit
 ) {
-    var mapError by remember { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     
     // Calculate center position based on locations or current location
     val centerPosition = remember(locations, currentLocation) {
         if (locations.isNotEmpty()) {
             val avgLat = locations.map { it.latitude }.average()
             val avgLng = locations.map { it.longitude }.average()
-            LatLng(avgLat, avgLng)
+            Pair(avgLat, avgLng)
         } else if (currentLocation != null) {
-            LatLng(currentLocation.latitude, currentLocation.longitude)
+            Pair(currentLocation.latitude, currentLocation.longitude)
         } else {
-            LatLng(-6.2088, 106.8456) // Default: Jakarta
+            Pair(-6.2088, 106.8456) // Default: Jakarta
         }
-    }
-
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(centerPosition, 15f)
     }
     
-    // Update camera when locations change
-    LaunchedEffect(locations, centerPosition) {
-        if (locations.isNotEmpty()) {
-            try {
-                cameraPositionState.animate(
-                    update = CameraUpdateFactory.newLatLngZoom(centerPosition, 15f),
-                    durationMs = 1000
-                )
-            } catch (e: Exception) {
-                mapError = "Animasi peta error: ${e.message}"
-            }
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState,
-            properties = MapProperties(
-                isMyLocationEnabled = false, // Disable to avoid permission issues
-                mapType = MapType.NORMAL
-            ),
-            uiSettings = MapUiSettings(
-                zoomControlsEnabled = true,
-                myLocationButtonEnabled = false,
-                mapToolbarEnabled = true,
-                compassEnabled = true,
-                zoomGesturesEnabled = true,
-                scrollGesturesEnabled = true
-            ),
-            onMapLoaded = {
-                mapError = null
-            }
-        ) {
-            // Add markers for each location
-            locations.forEach { location ->
-                Marker(
-                    state = rememberMarkerState(position = LatLng(location.latitude, location.longitude)),
-                    title = location.name.ifEmpty { "Lokasi Foto" },
-                    snippet = "${location.address.take(50)}${if (location.address.length > 50) "..." else ""}",
-                    onClick = {
-                        onMarkerClick(location.id)
-                        true
-                    }
-                )
-            }
-            
-            // Show current location marker if available and no saved locations
-            if (locations.isEmpty() && currentLocation != null) {
-                Marker(
-                    state = rememberMarkerState(position = LatLng(currentLocation.latitude, currentLocation.longitude)),
-                    title = "Lokasi Saya",
-                    snippet = "Posisi saat ini"
-                )
-            }
-        }
+        // Street View using WebView (no API key needed)
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { ctx ->
+                android.webkit.WebView(ctx).apply {
+                    settings.javaScriptEnabled = true
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    
+                    val lat = centerPosition.first
+                    val lng = centerPosition.second
+                    
+                    // Load Google Maps embed (works without API key for simple view)
+                    val mapUrl = "https://maps.google.com/maps?q=$lat,$lng&t=&z=15&ie=UTF8&iwloc=&output=embed"
+                    loadUrl(mapUrl)
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
         
-        // Info overlay about API key
+        // Overlay with location count and markers info
         if (locations.isNotEmpty()) {
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
-                    .align(Alignment.TopCenter)
+                    .align(Alignment.BottomStart)
             ) {
                 Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
-                    shape = RoundedCornerShape(8.dp)
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    shape = RoundedCornerShape(12.dp),
+                    shadowElevation = 4.dp
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Info,
-                            null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            "${locations.size} lokasi tersimpan. Peta butuh Google Maps API key untuk tampil penuh.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            "${locations.size} Lokasi Tersimpan",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        locations.take(3).forEach { location ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onMarkerClick(location.id) }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.LocationOn,
+                                    null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    location.name.ifEmpty { location.address.take(30) },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        if (locations.size > 3) {
+                            Text(
+                                "+ ${locations.size - 3} lokasi lainnya",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 24.dp, top = 4.dp)
+                            )
+                        }
                     }
                 }
-            }
-        }
-        
-        // Show error overlay if any
-        mapError?.let { error ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .background(
-                            MaterialTheme.colorScheme.errorContainer,
-                            RoundedCornerShape(8.dp)
-                        )
-                        .padding(8.dp)
-                )
             }
         }
     }
