@@ -147,6 +147,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 
                 repository.saveLocation(geoLocation)
+                
+                // Trigger auto backup to ImgBB
+                com.geotag.app.data.remote.SyncWorker.enqueue(context)
+                
                 Toast.makeText(context, "Foto dari galeri berhasil disimpan", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(

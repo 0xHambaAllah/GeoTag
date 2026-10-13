@@ -50,9 +50,43 @@ class LocationRepository(private val context: Context) {
             for (remote in remoteLocations) {
                 val local = dao.getLocationById(remote.id)
                 if (local == null) {
-                    dao.insertLocation(remote)
+                    // Download photo from ImgBB if URL exists
+                    var localPath = remote.photoLocalPath
+                    if (remote.photoUrl.isNotEmpty() && remote.photoLocalPath.isEmpty()) {
+                        try {
+                            localPath = downloadPhoto(remote.photoUrl, remote.id)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    dao.insertLocation(remote.copy(photoLocalPath = localPath))
                 }
             }
         } catch (_: Exception) {}
+    }
+    
+    private suspend fun downloadPhoto(url: String, locationId: String): String {
+        val client = okhttp3.OkHttpClient()
+        val request = okhttp3.Request.Builder()
+            .url(url)
+            .build()
+        
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) {
+            throw Exception("Download failed: ${response.code}")
+        }
+        
+        // Save to app storage
+        val photoDir = File(context.getExternalFilesDir(null), "photos")
+        if (!photoDir.exists()) photoDir.mkdirs()
+        
+        val photoFile = File(photoDir, "$locationId.jpg")
+        response.body?.byteStream()?.use { input ->
+            photoFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        
+        return photoFile.absolutePath
     }
 }

@@ -99,6 +99,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     isSynced = false
                 )
                 repository.saveLocation(geoLocation)
+                
+                // Trigger auto backup to ImgBB
+                com.geotag.app.data.remote.SyncWorker.enqueue(getApplication())
+                
                 onSuccess()
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
