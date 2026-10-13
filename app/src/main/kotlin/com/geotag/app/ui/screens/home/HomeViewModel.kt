@@ -1,14 +1,21 @@
 package com.geotag.app.ui.screens.home
 
 import android.app.Application
+import android.content.Context
 import android.location.Location
+import android.net.Uri
+import android.widget.Toast
+import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.geotag.app.data.model.GeoLocation
 import com.geotag.app.data.repository.LocationRepository
 import com.geotag.app.util.LocationUtils
+import com.geotag.app.util.PhotoUtils
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = LocationRepository(application)
@@ -69,5 +76,66 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         repository.firebase.signOut()
+    }
+    
+    fun handleGalleryPhoto(context: Context, uri: Uri, onNavigateToCamera: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                // Copy photo to app storage
+                val photoFile = PhotoUtils.createImageFile(getApplication())
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(photoFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                
+                // Extract EXIF GPS data
+                val exif = ExifInterface(photoFile.absolutePath)
+                val latLong = FloatArray(2)
+                val hasGps = exif.getLatLong(latLong)
+                
+                if (hasGps) {
+                    // Photo has GPS data - save directly
+                    val latitude = latLong[0].toDouble()
+                    val longitude = latLong[1].toDouble()
+                    val address = LocationUtils.getAddressFromLocation(
+                        getApplication(),
+                        latitude,
+                        longitude
+                    )
+                    
+                    val uid = userId ?: throw Exception("User not logged in")
+                    val geoLocation = GeoLocation(
+                        userId = uid,
+                        name = "",
+                        phoneNumber = "",
+                        photoLocalPath = photoFile.absolutePath,
+                        latitude = latitude,
+                        longitude = longitude,
+                        address = address,
+                        timestamp = System.currentTimeMillis(),
+                        isSynced = false
+                    )
+                    
+                    repository.saveLocation(geoLocation)
+                    Toast.makeText(context, "Foto dari galeri berhasil disimpan", Toast.LENGTH_SHORT).show()
+                } else {
+                    // No GPS data - show message and delete the copied file
+                    photoFile.delete()
+                    Toast.makeText(
+                        context,
+                        "Foto tidak memiliki data GPS. Gunakan kamera untuk mengambil foto baru.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    onNavigateToCamera()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(
+                    context,
+                    "Gagal memproses foto: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 }

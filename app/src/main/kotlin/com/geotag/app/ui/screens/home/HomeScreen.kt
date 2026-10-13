@@ -2,6 +2,9 @@ package com.geotag.app.ui.screens.home
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,11 +42,58 @@ fun HomeScreen(
     onLogout: () -> Unit,
     viewModel: HomeViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val locations by viewModel.locations.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentLocation by viewModel.currentLocation.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
+    var showPhotoSourceDialog by remember { mutableStateOf(false) }
+    
+    // Gallery picker launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let {
+            viewModel.handleGalleryPhoto(context, it, onAddClick)
+        }
+    }
+    
+    // Photo source dialog
+    if (showPhotoSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showPhotoSourceDialog = false },
+            icon = { Icon(Icons.Default.PhotoCamera, null) },
+            title = { Text("Pilih Sumber Foto") },
+            text = { Text("Ambil foto baru dengan kamera atau pilih dari galeri?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPhotoSourceDialog = false
+                        onAddClick()
+                    }
+                ) {
+                    Icon(Icons.Default.CameraAlt, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Kamera")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPhotoSourceDialog = false
+                        galleryLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }
+                ) {
+                    Icon(Icons.Default.PhotoLibrary, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Galeri")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -84,7 +134,7 @@ fun HomeScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = onAddClick,
+                onClick = { showPhotoSourceDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Default.Add, "Tambah Lokasi")
@@ -396,6 +446,13 @@ fun MapView(
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(centerPosition, 12f)
     }
+    
+    // Update camera when locations change
+    LaunchedEffect(locations, centerPosition) {
+        if (locations.isNotEmpty()) {
+            cameraPositionState.position = CameraPosition.fromLatLngZoom(centerPosition, 12f)
+        }
+    }
 
     GoogleMap(
         modifier = Modifier.fillMaxSize(),
@@ -412,7 +469,7 @@ fun MapView(
         // Add markers for each location
         locations.forEach { location ->
             Marker(
-                state = MarkerState(position = LatLng(location.latitude, location.longitude)),
+                state = rememberMarkerState(position = LatLng(location.latitude, location.longitude)),
                 title = location.name.ifEmpty { "Tanpa nama" },
                 snippet = location.address.ifEmpty { null },
                 onClick = {
@@ -425,7 +482,7 @@ fun MapView(
         // Show current location marker if available and no saved locations
         if (locations.isEmpty() && currentLocation != null) {
             Marker(
-                state = MarkerState(position = LatLng(currentLocation.latitude, currentLocation.longitude)),
+                state = rememberMarkerState(position = LatLng(currentLocation.latitude, currentLocation.longitude)),
                 title = "Lokasi Saya",
                 snippet = "Posisi saat ini"
             )
