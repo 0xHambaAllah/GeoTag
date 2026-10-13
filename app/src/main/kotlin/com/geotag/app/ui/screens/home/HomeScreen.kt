@@ -482,7 +482,7 @@ fun MapView(
     }
     
     Box(modifier = Modifier.fillMaxSize()) {
-        // OpenStreetMap with Leaflet (no API key needed)
+        // OpenStreetMap dengan tile langsung (no external CDN)
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { ctx ->
                 android.webkit.WebView(ctx).apply {
@@ -494,66 +494,56 @@ fun MapView(
                     val lat = centerPosition.first
                     val lng = centerPosition.second
                     
-                    // Build markers HTML for all locations
-                    val markersHtml = locations.joinToString("\n") { loc ->
-                        """
-                        L.marker([${loc.latitude}, ${loc.longitude}])
-                            .addTo(map)
-                            .bindPopup('<b>${loc.name.ifEmpty { "Lokasi Foto" }}</b><br>${loc.address.take(50)}')
-                            .on('click', function() { 
-                                Android.onMarkerClick('${loc.id}'); 
-                            });
-                        """.trimIndent()
-                    }
-                    
-                    // OpenStreetMap with Leaflet.js
+                    // Simple OpenStreetMap without Leaflet (pure JS)
                     val html = """
                         <!DOCTYPE html>
                         <html>
                         <head>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-                            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                             <style>
-                                body { margin: 0; padding: 0; }
-                                #map { width: 100%; height: 100vh; }
+                                body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+                                #map { width: 100%; height: 100vh; background: #aad3df; }
+                                .marker { 
+                                    position: absolute; 
+                                    width: 30px; 
+                                    height: 40px; 
+                                    margin-left: -15px; 
+                                    margin-top: -40px;
+                                    cursor: pointer;
+                                    font-size: 30px;
+                                }
+                                .info {
+                                    position: absolute;
+                                    top: 10px;
+                                    left: 10px;
+                                    background: white;
+                                    padding: 10px;
+                                    border-radius: 8px;
+                                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                                    max-width: 200px;
+                                    z-index: 1000;
+                                }
                             </style>
                         </head>
                         <body>
-                            <div id="map"></div>
-                            <script>
-                                var map = L.map('map').setView([$lat, $lng], 15);
-                                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                                    attribution: '© OpenStreetMap',
-                                    maxZoom: 19
-                                }).addTo(map);
-                                
-                                $markersHtml
-                            </script>
+                            <div id="map">
+                                <img id="mapTile" style="width:100%; height:100%; object-fit:cover;" 
+                                     src="https://tile.openstreetmap.org/15/${Math.floor((lng + 180) / 360 * Math.pow(2, 15))}/${Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, 15))}.png"
+                                     onerror="this.style.display='none'">
+                            </div>
+                            <div class="info">
+                                <b>${locations.size} Lokasi Tersimpan</b><br>
+                                Peta OpenStreetMap<br>
+                                <small>Lat: ${String.format("%.4f", lat)}, Lng: ${String.format("%.4f", lng)}</small>
+                            </div>
                         </body>
                         </html>
                     """.trimIndent()
                     
-                    // Add JavaScript interface for marker clicks
-                    addJavascriptInterface(object {
-                        @android.webkit.JavascriptInterface
-                        fun onMarkerClick(locationId: String) {
-                            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                onMarkerClick(locationId)
-                            }
-                        }
-                    }, "Android")
-                    
                     loadDataWithBaseURL("https://openstreetmap.org", html, "text/html", "UTF-8", null)
                 }
             },
-            modifier = Modifier.fillMaxSize(),
-            update = { webView ->
-                // Update map when locations change
-                val lat = centerPosition.first
-                val lng = centerPosition.second
-                webView.loadUrl("javascript:map.setView([$lat, $lng], 15);")
-            }
+            modifier = Modifier.fillMaxSize()
         )
         
         // Overlay with location count and markers info

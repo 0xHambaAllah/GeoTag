@@ -13,7 +13,6 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val userId = firebase.currentUserId ?: return Result.failure()
         val db = GeoTagDatabase.getDatabase(applicationContext)
         val dao = db.locationDao()
-        val imgbbApiKey = applicationContext.getString(R.string.imgbb_api_key)
 
         val unsyncedLocations = dao.getUnsyncedLocations(userId)
 
@@ -24,7 +23,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                     val file = File(location.photoLocalPath)
                     if (file.exists()) {
                         val compressed = PhotoUtils.compressPhoto(applicationContext, file)
-                        photoUrl = firebase.uploadPhoto(userId, location.id, compressed, imgbbApiKey)
+                        // Upload to Firebase Storage (no API key needed)
+                        photoUrl = firebase.uploadPhoto(userId, location.id, compressed)
                     }
                 }
                 val synced = location.copy(photoUrl = photoUrl, isSynced = true)

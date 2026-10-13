@@ -30,45 +30,36 @@ class FirebaseService {
         auth.signOut()
     }
 
-    suspend fun uploadPhoto(userId: String, locationId: String, photoFile: File, apiKey: String): String {
-        // Upload to ImgBB API instead of Firebase Storage
+    suspend fun uploadPhoto(userId: String, locationId: String, photoFile: File): String {
+        // Upload to Firebase Storage (reliable, unlimited)
         return try {
-            val client = okhttp3.OkHttpClient()
-            val requestBody = okhttp3.MultipartBody.Builder()
-                .setType(okhttp3.MultipartBody.FORM)
-                .addFormDataPart("key", apiKey)
-                .addFormDataPart(
-                    "image",
-                    photoFile.name,
-                    okhttp3.RequestBody.create(
-                        "image/jpeg".toMediaType(),
-                        photoFile
-                    )
-                )
-                .build()
+            val storageRef = storage.reference
+                .child("photos/$userId/$locationId.jpg")
             
-            val request = okhttp3.Request.Builder()
-                .url("https://api.imgbb.com/1/upload")
-                .post(requestBody)
-                .build()
+            // Upload file
+            storageRef.putFile(Uri.fromFile(photoFile)).await()
             
-            val response = client.newCall(request).execute()
-            val responseBody = response.body?.string() ?: throw Exception("Empty response")
-            
-            if (!response.isSuccessful) {
-                throw Exception("Upload failed: ${response.code}")
-            }
-            
-            // Parse JSON response to extract image URL
-            val json = org.json.JSONObject(responseBody)
-            if (json.getBoolean("success")) {
-                json.getJSONObject("data").getString("url")
-            } else {
-                throw Exception("ImgBB upload failed")
-            }
+            // Get download URL
+            val downloadUrl = storageRef.downloadUrl.await()
+            downloadUrl.toString()
         } catch (e: Exception) {
-            // Fallback: return empty string or throw
+            android.util.Log.e("FirebaseService", "Upload failed: ${e.message}")
             throw Exception("Photo upload failed: ${e.message}")
+        }
+    }
+    
+    suspend fun downloadPhoto(userId: String, locationId: String, destinationFile: File): Boolean {
+        // Download from Firebase Storage
+        return try {
+            val storageRef = storage.reference
+                .child("photos/$userId/$locationId.jpg")
+            
+            storageRef.getFile(destinationFile).await()
+            android.util.Log.d("FirebaseService", "Downloaded to: ${destinationFile.absolutePath}")
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseService", "Download failed: ${e.message}")
+            false
         }
     }
 
