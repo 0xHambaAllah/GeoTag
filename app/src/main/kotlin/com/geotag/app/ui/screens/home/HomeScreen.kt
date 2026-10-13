@@ -59,16 +59,6 @@ fun HomeScreen(
             viewModel.handleGalleryPhoto(context, it, onAddClick)
         }
     }
-    var showPhotoSourceDialog by remember { mutableStateOf(false) }
-    
-    // Gallery picker launcher
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        uri?.let {
-            viewModel.handleGalleryPhoto(context, it, onAddClick)
-        }
-    }
     
     // Photo source dialog
     if (showPhotoSourceDialog) {
