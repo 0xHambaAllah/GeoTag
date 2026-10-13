@@ -421,5 +421,14 @@ fun MapView(
                 }
             )
         }
+        
+        // Show current location marker if available and no saved locations
+        if (locations.isEmpty() && currentLocation != null) {
+            Marker(
+                state = MarkerState(position = LatLng(currentLocation.latitude, currentLocation.longitude)),
+                title = "Lokasi Saya",
+                snippet = "Posisi saat ini"
+            )
+        }
     }
 }
