@@ -26,7 +26,6 @@ import coil.compose.AsyncImage
 import com.geotag.app.data.model.GeoLocation
 import com.geotag.app.ui.components.AppFooter
 import com.geotag.app.util.LocationUtils
-import androidx.compose.ui.text.style.TextAlign
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
@@ -50,6 +49,16 @@ fun HomeScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val userId by viewModel.userId.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
+    var showPhotoSourceDialog by remember { mutableStateOf(false) }
+    
+    // Gallery picker launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let {
+            viewModel.handleGalleryPhoto(context, it, onAddClick)
+        }
+    }
     var showPhotoSourceDialog by remember { mutableStateOf(false) }
     
     // Gallery picker launcher
