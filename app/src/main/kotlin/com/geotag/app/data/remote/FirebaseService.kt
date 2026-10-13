@@ -6,6 +6,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import java.io.File
 
@@ -30,36 +32,43 @@ class FirebaseService {
         auth.signOut()
     }
 
-    suspend fun uploadPhoto(userId: String, locationId: String, photoFile: File): String {
-        // Upload to Firebase Storage (reliable, unlimited)
+    suspend fun uploadPhoto(userId: String, locationId: String, photoFile: File, apiKey: String): String {
+        // Upload to ImgBB (free, no credit card needed)
         return try {
-            val storageRef = storage.reference
-                .child("photos/$userId/$locationId.jpg")
+            val client = okhttp3.OkHttpClient()
+            val base64 = android.util.Base64.encodeToString(
+                photoFile.readBytes(),
+                android.util.Base64.NO_WRAP
+            )
             
-            // Upload file
-            storageRef.putFile(Uri.fromFile(photoFile)).await()
+            val requestBody = okhttp3.FormBody.Builder()
+                .add("key", apiKey)
+                .add("image", base64)
+                .add("name", locationId)
+                .build()
             
-            // Get download URL
-            val downloadUrl = storageRef.downloadUrl.await()
-            downloadUrl.toString()
+            val request = okhttp3.Request.Builder()
+                .url("https://api.imgbb.com/1/upload")
+                .post(requestBody)
+                .build()
+            
+            val response = withContext(Dispatchers.IO) {
+                client.newCall(request).execute()
+            }
+            
+            if (response.isSuccessful) {
+                val jsonResponse = org.json.JSONObject(response.body?.string() ?: "{}")
+                val imageUrl = jsonResponse.getJSONObject("data").getString("url")
+                android.util.Log.d("FirebaseService", "Uploaded to ImgBB: $imageUrl")
+                imageUrl
+            } else {
+                android.util.Log.e("FirebaseService", "ImgBB upload failed: ${response.code}")
+                ""
+            }
         } catch (e: Exception) {
-            android.util.Log.e("FirebaseService", "Upload failed: ${e.message}")
-            throw Exception("Photo upload failed: ${e.message}")
-        }
-    }
-    
-    suspend fun downloadPhoto(userId: String, locationId: String, destinationFile: File): Boolean {
-        // Download from Firebase Storage
-        return try {
-            val storageRef = storage.reference
-                .child("photos/$userId/$locationId.jpg")
-            
-            storageRef.getFile(destinationFile).await()
-            android.util.Log.d("FirebaseService", "Downloaded to: ${destinationFile.absolutePath}")
-            true
-        } catch (e: Exception) {
-            android.util.Log.e("FirebaseService", "Download failed: ${e.message}")
-            false
+            android.util.Log.e("FirebaseService", "Failed to upload photo: ${e.message}")
+            e.printStackTrace()
+            ""
         }
     }
 
@@ -75,9 +84,7 @@ class FirebaseService {
             .document(locationId)
             .delete()
             .await()
-        try {
-            storage.reference.child("photos/$userId/$locationId.jpg").delete().await()
-        } catch (_: Exception) {}
+        // ImgBB photos don't need deletion (permanent links)
     }
 
     suspend fun getRemoteLocations(userId: String): List<GeoLocation> {
