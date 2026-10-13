@@ -100,8 +100,15 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 )
                 repository.saveLocation(geoLocation)
                 
-                // Trigger auto backup to ImgBB
+                // Trigger auto backup
                 com.geotag.app.data.remote.SyncWorker.enqueue(getApplication())
+                
+                // Instant feedback
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "Foto disimpan! Backup ke cloud sedang berjalan...",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
                 
                 onSuccess()
             } catch (e: Exception) {
