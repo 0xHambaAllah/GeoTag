@@ -494,7 +494,15 @@ fun MapView(
                     val lat = centerPosition.first
                     val lng = centerPosition.second
                     
-                    // Simple OpenStreetMap without Leaflet (pure JS)
+                    // Calculate OSM tile coordinates
+                    val zoom = 15
+                    val tileX = ((lng + 180.0) / 360.0 * (1 shl zoom)).toInt()
+                    val tileY = ((1.0 - kotlin.math.ln(kotlin.math.tan(lat * Math.PI / 180.0) + 1.0 / kotlin.math.cos(lat * Math.PI / 180.0)) / Math.PI) / 2.0 * (1 shl zoom)).toInt()
+                    
+                    val latFormatted = "%.4f".format(lat)
+                    val lngFormatted = "%.4f".format(lng)
+                    
+                    // Simple OpenStreetMap static tile
                     val html = """
                         <!DOCTYPE html>
                         <html>
@@ -503,15 +511,6 @@ fun MapView(
                             <style>
                                 body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
                                 #map { width: 100%; height: 100vh; background: #aad3df; }
-                                .marker { 
-                                    position: absolute; 
-                                    width: 30px; 
-                                    height: 40px; 
-                                    margin-left: -15px; 
-                                    margin-top: -40px;
-                                    cursor: pointer;
-                                    font-size: 30px;
-                                }
                                 .info {
                                     position: absolute;
                                     top: 10px;
@@ -527,14 +526,14 @@ fun MapView(
                         </head>
                         <body>
                             <div id="map">
-                                <img id="mapTile" style="width:100%; height:100%; object-fit:cover;" 
-                                     src="https://tile.openstreetmap.org/15/${Math.floor((lng + 180) / 360 * Math.pow(2, 15))}/${Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, 15))}.png"
-                                     onerror="this.style.display='none'">
+                                <img style="width:100%; height:100%; object-fit:cover;" 
+                                     src="https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png"
+                                     onerror="this.alt='Peta tidak dapat dimuat'">
                             </div>
                             <div class="info">
                                 <b>${locations.size} Lokasi Tersimpan</b><br>
                                 Peta OpenStreetMap<br>
-                                <small>Lat: ${String.format("%.4f", lat)}, Lng: ${String.format("%.4f", lng)}</small>
+                                <small>Lat: $latFormatted, Lng: $lngFormatted</small>
                             </div>
                         </body>
                         </html>
