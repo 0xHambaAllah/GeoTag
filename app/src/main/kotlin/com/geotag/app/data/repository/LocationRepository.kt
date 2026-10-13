@@ -95,16 +95,20 @@ class LocationRepository(private val context: Context) {
             throw Exception("Download failed: ${response.code}")
         }
         
-        // Save to app storage
+        // Save to app storage with ID as filename
         val photoDir = File(context.getExternalFilesDir(null), "photos")
         if (!photoDir.exists()) photoDir.mkdirs()
         
-        val photoFile = File(photoDir, "$locationId.jpg")
+        val photoFile = File(photoDir, "${locationId}.jpg")
+        
+        // Download and save
         response.body?.byteStream()?.use { input ->
             photoFile.outputStream().use { output ->
                 input.copyTo(output)
             }
         }
+        
+        android.util.Log.d("LocationRepository", "Downloaded photo to: ${photoFile.absolutePath}")
         
         return photoFile.absolutePath
     }

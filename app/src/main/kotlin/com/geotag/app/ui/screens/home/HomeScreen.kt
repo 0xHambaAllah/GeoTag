@@ -482,7 +482,7 @@ fun MapView(
     }
     
     Box(modifier = Modifier.fillMaxSize()) {
-        // Google Maps Embed in iframe via WebView
+        // OpenStreetMap with Leaflet (no API key needed)
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { ctx ->
                 android.webkit.WebView(ctx).apply {
@@ -494,27 +494,66 @@ fun MapView(
                     val lat = centerPosition.first
                     val lng = centerPosition.second
                     
-                    // Wrap embed URL in HTML iframe
+                    // Build markers HTML for all locations
+                    val markersHtml = locations.joinToString("\n") { loc ->
+                        """
+                        L.marker([${loc.latitude}, ${loc.longitude}])
+                            .addTo(map)
+                            .bindPopup('<b>${loc.name.ifEmpty { "Lokasi Foto" }}</b><br>${loc.address.take(50)}')
+                            .on('click', function() { 
+                                Android.onMarkerClick('${loc.id}'); 
+                            });
+                        """.trimIndent()
+                    }
+                    
+                    // OpenStreetMap with Leaflet.js
                     val html = """
                         <!DOCTYPE html>
                         <html>
                         <head>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+                            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                             <style>
                                 body { margin: 0; padding: 0; }
-                                iframe { width: 100%; height: 100vh; border: 0; }
+                                #map { width: 100%; height: 100vh; }
                             </style>
                         </head>
                         <body>
-                            <iframe src="https://maps.google.com/maps?q=$lat,$lng&t=&z=15&ie=UTF8&iwloc=&output=embed"></iframe>
+                            <div id="map"></div>
+                            <script>
+                                var map = L.map('map').setView([$lat, $lng], 15);
+                                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                    attribution: '© OpenStreetMap',
+                                    maxZoom: 19
+                                }).addTo(map);
+                                
+                                $markersHtml
+                            </script>
                         </body>
                         </html>
                     """.trimIndent()
                     
-                    loadDataWithBaseURL("https://maps.google.com", html, "text/html", "UTF-8", null)
+                    // Add JavaScript interface for marker clicks
+                    addJavascriptInterface(object {
+                        @android.webkit.JavascriptInterface
+                        fun onMarkerClick(locationId: String) {
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                onMarkerClick(locationId)
+                            }
+                        }
+                    }, "Android")
+                    
+                    loadDataWithBaseURL("https://openstreetmap.org", html, "text/html", "UTF-8", null)
                 }
             },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            update = { webView ->
+                // Update map when locations change
+                val lat = centerPosition.first
+                val lng = centerPosition.second
+                webView.loadUrl("javascript:map.setView([$lat, $lng], 15);")
+            }
         )
         
         // Overlay with location count and markers info
