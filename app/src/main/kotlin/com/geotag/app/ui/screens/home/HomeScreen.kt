@@ -29,7 +29,6 @@ import com.geotag.app.util.LocationUtils
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MapType
 import com.google.maps.android.compose.*
 import java.io.File
 import java.text.SimpleDateFormat
