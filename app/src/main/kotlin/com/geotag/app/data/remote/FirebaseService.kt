@@ -58,7 +58,12 @@ class FirebaseService {
             
             if (response.isSuccessful) {
                 val jsonResponse = org.json.JSONObject(response.body?.string() ?: "{}")
-                val imageUrl = jsonResponse.getJSONObject("data").getString("url")
+                val data = jsonResponse.getJSONObject("data")
+                // PENTING: data.url adalah halaman viewer (HTML), bukan file gambar.
+                // Pakai display_url (link langsung ke gambar) agar bisa dibuka Coil.
+                val imageUrl = data.optString("display_url").ifEmpty {
+                    data.optJSONObject("image")?.optString("url").orEmpty()
+                }
                 android.util.Log.d("FirebaseService", "Uploaded to ImgBB: $imageUrl")
                 imageUrl
             } else {

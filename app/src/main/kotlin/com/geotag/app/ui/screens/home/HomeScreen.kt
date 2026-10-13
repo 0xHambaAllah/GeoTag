@@ -468,82 +468,115 @@ fun MapView(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     
-    // Calculate center position based on locations or current location
-    val centerPosition = remember(locations, currentLocation) {
-        if (locations.isNotEmpty()) {
-            val avgLat = locations.map { it.latitude }.average()
-            val avgLng = locations.map { it.longitude }.average()
-            Pair(avgLat, avgLng)
-        } else if (currentLocation != null) {
-            Pair(currentLocation.latitude, currentLocation.longitude)
-        } else {
-            Pair(-6.2088, 106.8456) // Default: Jakarta
+    // Posisi tengah peta: rata-rata lokasi tersimpan / lokasi saat ini / Jakarta
+    val centerLat: Double
+    val centerLng: Double
+    if (locations.isNotEmpty()) {
+        centerLat = locations.map { it.latitude }.average()
+        centerLng = locations.map { it.longitude }.average()
+    } else if (currentLocation != null) {
+        centerLat = currentLocation.latitude
+        centerLng = currentLocation.longitude
+    } else {
+        centerLat = -6.2088
+        centerLng = 106.8456 // Default: Jakarta
+    }
+
+    // Escape string agar aman disisipkan ke JavaScript
+    fun escJs(s: String): String = s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
+
+    // Data marker lokasi sebagai JS array
+    val markersJs = remember(locations) {
+        locations.joinToString(",\n") { loc ->
+            val nama = escJs(loc.name.ifEmpty { "Tanpa nama" })
+            val alamat = escJs(loc.address.take(80))
+            "{id:'${loc.id}',lat:${loc.latitude},lng:${loc.longitude},name:'$nama',addr:'$alamat'}"
         }
     }
-    
+    val currentJs = remember(currentLocation) {
+        currentLocation?.let { "{lat:${it.latitude},lng:${it.longitude}}" } ?: "null"
+    }
+
+    // HTML peta interaktif: Leaflet + OpenStreetMap (gratis, tanpa API key)
+    val mapHtml = remember(markersJs, currentJs, centerLat, centerLng) {
+        """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+            <style>
+                html,body{margin:0;padding:0;height:100%;}
+                #map{width:100%;height:100%;background:#aad3df;}
+            </style>
+        </head>
+        <body>
+            <div id="map"></div>
+            <script>
+                var map = L.map('map',{zoomControl:true}).setView([$centerLat,$centerLng],14);
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+                    maxZoom:19,
+                    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                }).addTo(map);
+                var markers = [$markersJs];
+                markers.forEach(function(m){
+                    var pop = '<b>'+m.name+'</b><br/>'+m.addr;
+                    L.marker([m.lat,m.lng]).addTo(map).bindPopup(pop)
+                        .on('click',function(){ if(window.Android){ window.Android.onMarkerClick(m.id); } });
+                });
+                var cur = $currentJs;
+                if(cur){
+                    L.circleMarker([cur.lat,cur.lng],{radius:9,color:'#1a73e8',fillColor:'#1a73e8',fillOpacity:0.9})
+                        .addTo(map).bindPopup('Lokasi saya');
+                }
+                if(markers.length>0){
+                    var grp = L.featureGroup(markers.map(function(m){ return L.marker([m.lat,m.lng]); }));
+                    map.fitBounds(grp.getBounds().pad(0.25));
+                }
+            </script>
+        </body>
+        </html>
+        """.trimIndent()
+    }
+
+    // Bridge klik marker WebView -> Compose (dijalankan di main thread)
+    val latestOnMarkerClick by rememberUpdatedState(onMarkerClick)
+    val mapBridge = remember {
+        object {
+            private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            @android.webkit.JavascriptInterface
+            fun onMarkerClick(id: String) {
+                handler.post { latestOnMarkerClick(id) }
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
-        // OpenStreetMap dengan tile langsung (no external CDN)
+        // Peta interaktif Leaflet + OSM; reload hanya saat data berubah
+        var lastLoadedHtml by remember { mutableStateOf<String?>(null) }
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { ctx ->
                 android.webkit.WebView(ctx).apply {
                     settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
                     settings.loadWithOverviewMode = true
                     settings.useWideViewPort = true
-                    settings.domStorageEnabled = true
-                    
-                    val lat = centerPosition.first
-                    val lng = centerPosition.second
-                    
-                    // Calculate OSM tile coordinates
-                    val zoom = 15
-                    val tileX = ((lng + 180.0) / 360.0 * (1 shl zoom)).toInt()
-                    val tileY = ((1.0 - kotlin.math.ln(kotlin.math.tan(lat * Math.PI / 180.0) + 1.0 / kotlin.math.cos(lat * Math.PI / 180.0)) / Math.PI) / 2.0 * (1 shl zoom)).toInt()
-                    
-                    val latFormatted = "%.4f".format(lat)
-                    val lngFormatted = "%.4f".format(lng)
-                    
-                    // Simple OpenStreetMap static tile
-                    val html = """
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <style>
-                                body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-                                #map { width: 100%; height: 100vh; background: #aad3df; }
-                                .info {
-                                    position: absolute;
-                                    top: 10px;
-                                    left: 10px;
-                                    background: white;
-                                    padding: 10px;
-                                    border-radius: 8px;
-                                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                                    max-width: 200px;
-                                    z-index: 1000;
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <div id="map">
-                                <img style="width:100%; height:100%; object-fit:cover;" 
-                                     src="https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png"
-                                     onerror="this.alt='Peta tidak dapat dimuat'">
-                            </div>
-                            <div class="info">
-                                <b>${locations.size} Lokasi Tersimpan</b><br>
-                                Peta OpenStreetMap<br>
-                                <small>Lat: $latFormatted, Lng: $lngFormatted</small>
-                            </div>
-                        </body>
-                        </html>
-                    """.trimIndent()
-                    
-                    loadDataWithBaseURL("https://openstreetmap.org", html, "text/html", "UTF-8", null)
+                    addJavascriptInterface(mapBridge, "Android")
+                }
+            },
+            update = { webView ->
+                if (lastLoadedHtml != mapHtml) {
+                    lastLoadedHtml = mapHtml
+                    webView.loadDataWithBaseURL(
+                        "https://www.openstreetmap.org",
+                        mapHtml, "text/html", "UTF-8", null
+                    )
                 }
             },
             modifier = Modifier.fillMaxSize()
         )
+
         
         // Overlay with location count and markers info
         if (locations.isNotEmpty()) {
