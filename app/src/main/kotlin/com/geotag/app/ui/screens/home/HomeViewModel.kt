@@ -76,6 +76,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _isRefreshing.value = false
         }
     }
+    
+    fun triggerBackup() {
+        viewModelScope.launch {
+            try {
+                com.geotag.app.data.remote.SyncWorker.enqueue(getApplication())
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "Backup dimulai...",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "Gagal memulai backup: ${e.message}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
 
     fun deleteLocation(location: GeoLocation) {
         viewModelScope.launch {

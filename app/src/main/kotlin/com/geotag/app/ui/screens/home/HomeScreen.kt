@@ -122,6 +122,22 @@ fun HomeScreen(
                         }
                         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                             DropdownMenuItem(
+                                text = { Text("Backup Foto ke Cloud") },
+                                onClick = {
+                                    showMenu = false
+                                    viewModel.triggerBackup()
+                                },
+                                leadingIcon = { Icon(Icons.Default.CloudUpload, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Restore dari Cloud") },
+                                onClick = {
+                                    showMenu = false
+                                    viewModel.syncFromRemote()
+                                },
+                                leadingIcon = { Icon(Icons.Default.CloudDownload, null) }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Logout") },
                                 onClick = {
                                     showMenu = false
@@ -527,6 +543,39 @@ fun MapView(
                     title = "Lokasi Saya",
                     snippet = "Posisi saat ini"
                 )
+            }
+        }
+        
+        // Info overlay about API key
+        if (locations.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .align(Alignment.TopCenter)
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "${locations.size} lokasi tersimpan. Peta butuh Google Maps API key untuk tampil penuh.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
             }
         }
         

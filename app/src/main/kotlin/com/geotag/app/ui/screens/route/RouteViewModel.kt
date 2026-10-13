@@ -16,17 +16,32 @@ class RouteViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedLocations = MutableStateFlow<List<GeoLocation>>(emptyList())
     val selectedLocations: StateFlow<List<GeoLocation>> = _selectedLocations
     
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
+    
     private val _currentLocation = MutableStateFlow<Location?>(null)
     val currentLocation: StateFlow<Location?> = _currentLocation
     
     val userId: String? get() = repository.firebase.currentUserId
     
-    val locations: StateFlow<List<GeoLocation>> = repository
-        .getLocations(userId ?: "")
+    val locations: StateFlow<List<GeoLocation>> = _searchQuery
+        .debounce(300)
+        .flatMapLatest { query ->
+            val uid = userId ?: return@flatMapLatest flowOf(emptyList())
+            if (query.isEmpty()) {
+                repository.getLocations(uid)
+            } else {
+                repository.searchLocations(uid, query)
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
     init {
         refreshLocation()
+    }
+    
+    fun onSearchQueryChange(query: String) {
+        _searchQuery.value = query
     }
     
     private fun refreshLocation() {

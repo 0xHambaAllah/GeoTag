@@ -25,6 +25,7 @@ fun RouteScreen(
     val locations by viewModel.locations.collectAsState()
     val selectedLocations by viewModel.selectedLocations.collectAsState()
     val currentLocation by viewModel.currentLocation.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
     val context = LocalContext.current
 
     Scaffold(
@@ -85,6 +86,25 @@ fun RouteScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // Search bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.onSearchQueryChange(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Cari lokasi...") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.onSearchQueryChange("") }) {
+                            Icon(Icons.Default.Clear, "Hapus")
+                        }
+                    }
+                },
+                singleLine = true
+            )
+            
             if (locations.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
