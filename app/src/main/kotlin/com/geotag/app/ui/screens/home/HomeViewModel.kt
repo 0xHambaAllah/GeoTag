@@ -28,14 +28,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
-    val userId: String? get() = repository.firebase.currentUserId
+    private val _userId = MutableStateFlow<String?>(repository.firebase.currentUserId)
+    val userId: StateFlow<String?> = _userId
     val userName: String? get() = repository.firebase.currentUserName
     val userEmail: String? get() = repository.firebase.currentUserEmail
 
     val locations: StateFlow<List<GeoLocation>> = _searchQuery
         .debounce(300)
         .flatMapLatest { query ->
-            val uid = userId ?: return@flatMapLatest flowOf(emptyList())
+            val uid = _userId.value ?: return@flatMapLatest flowOf(emptyList())
             if (query.isEmpty()) {
                 repository.getLocations(uid)
             } else {
