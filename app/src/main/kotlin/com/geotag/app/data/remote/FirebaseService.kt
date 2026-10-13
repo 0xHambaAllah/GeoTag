@@ -77,6 +77,36 @@ class FirebaseService {
         }
     }
 
+    suspend fun downloadPhoto(photoUrl: String, destinationFile: File): Boolean {
+        // Download dari URL langsung ImgBB (display_url)
+        return try {
+            val client = okhttp3.OkHttpClient()
+            val request = okhttp3.Request.Builder()
+                .url(photoUrl)
+                .build()
+
+            val response = withContext(Dispatchers.IO) {
+                client.newCall(request).execute()
+            }
+
+            if (response.isSuccessful) {
+                response.body?.byteStream()?.use { input ->
+                    destinationFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                android.util.Log.d("FirebaseService", "Downloaded to: ${destinationFile.absolutePath}")
+                true
+            } else {
+                android.util.Log.e("FirebaseService", "Download failed: ${response.code}")
+                false
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseService", "Download failed: ${e.message}")
+            false
+        }
+    }
+
     suspend fun saveLocation(location: GeoLocation) {
         firestore.collection("locations")
             .document(location.id)

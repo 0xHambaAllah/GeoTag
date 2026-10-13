@@ -61,8 +61,8 @@ class LocationRepository(private val context: Context) {
                             
                             val photoFile = File(photoDir, "${remote.id}.jpg")
                             
-                            // Download from Firebase Storage
-                            val success = firebase.downloadPhoto(userId, remote.id, photoFile)
+                            // Download dari URL langsung ImgBB
+                            val success = firebase.downloadPhoto(remote.photoUrl, photoFile)
                             if (success) {
                                 localPath = photoFile.absolutePath
                                 downloadedCount++
