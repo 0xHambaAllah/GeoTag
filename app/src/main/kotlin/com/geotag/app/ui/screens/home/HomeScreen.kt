@@ -223,6 +223,7 @@ fun HomeScreen(
                 }
             }
 
+            Box(modifier = Modifier.weight(1f)) {
             if (locations.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -278,13 +279,15 @@ fun HomeScreen(
                             onDelete = { viewModel.deleteLocation(location) }
                         )
                     }
-                    
-                    // Footer
-                    item {
-                        AppFooter(modifier = Modifier.padding(top = 16.dp, bottom = 80.dp))
-                    }
                 }
             }
+            }
+            // Footer sticky di bawah (tidak ikut scroll)
+            AppFooter(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            )
         }
     }
 }

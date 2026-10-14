@@ -131,8 +131,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     latitude = latLong[0].toDouble()
                     longitude = latLong[1].toDouble()
                 } else {
-                    // No GPS data - use current location
-                    val currentLoc = _currentLocation.value
+                    // No GPS data - coba ambil lokasi fresh (jangan andalkan cache)
+                    var currentLoc = _currentLocation.value
+                    if (currentLoc == null) {
+                        currentLoc = LocationUtils.getCurrentLocation(getApplication())
+                        if (currentLoc != null) {
+                            _currentLocation.value = currentLoc
+                        }
+                    }
                     if (currentLoc == null) {
                         photoFile.delete()
                         Toast.makeText(

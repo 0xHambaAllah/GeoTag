@@ -164,7 +164,8 @@ fun RouteScreen(
             if (selectedLocations.isNotEmpty()) {
                 Surface(
                     tonalElevation = 3.dp,
-                    shadowElevation = 8.dp
+                    shadowElevation = 8.dp,
+                    modifier = Modifier.navigationBarsPadding()
                 ) {
                     Row(
                         modifier = Modifier
