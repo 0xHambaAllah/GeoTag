@@ -210,11 +210,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         liveListenerJob = viewModelScope.launch {
-            repository.firebase.listenGroupLiveLocations(others).collect { list ->
-                val now = System.currentTimeMillis()
-                _liveLocations.value = list.filter {
-                    now - it.updatedAt < 5 * 60 * 1000
+            try {
+                repository.firebase.listenGroupLiveLocations(others).collect { list ->
+                    val now = System.currentTimeMillis()
+                    _liveLocations.value = list.filter {
+                        now - it.updatedAt < 5 * 60 * 1000
+                    }
                 }
+            } catch (e: Exception) {
+                // Listener gagal (misal rules belum ditambahkan) — jangan crash
+                e.printStackTrace()
+                _liveLocations.value = emptyList()
             }
         }
     }

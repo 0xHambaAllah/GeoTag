@@ -323,7 +323,8 @@ class FirebaseService {
                 .whereIn("email", memberEmails.take(10))
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
-                        close(error)
+                        // Jangan close dengan error — listener gagal tidak boleh crash aplikasi
+                        android.util.Log.e("FirebaseService", "Live listener error: ${error.message}")
                         return@addSnapshotListener
                     }
                     val list = snapshot?.documents?.mapNotNull { doc ->
