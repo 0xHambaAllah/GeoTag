@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.geotag.app.data.model.GeoLocation
+import com.geotag.app.data.model.LiveLocation
 import com.geotag.app.ui.components.AppFooter
 import com.geotag.app.util.LocationUtils
 import java.io.File
@@ -48,6 +49,7 @@ fun HomeScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val userId by viewModel.userId.collectAsState()
     val invitationCount by viewModel.invitationCount.collectAsState()
+    val liveLocations by viewModel.liveLocations.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
     var showPhotoSourceDialog by remember { mutableStateOf(false) }
     
@@ -236,10 +238,11 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-                if (locations.isNotEmpty() || currentLocation != null) {
+                if (locations.isNotEmpty() || currentLocation != null || liveLocations.isNotEmpty()) {
                     MapView(
                         locations = locations,
                         currentLocation = currentLocation,
+                        liveLocations = liveLocations,
                         onMarkerClick = { locationId -> onItemClick(locationId) }
                     )
                 } else {
@@ -595,10 +598,66 @@ fun createLabeledMarkerIcon(ctx: android.content.Context, label: String): androi
     return android.graphics.drawable.BitmapDrawable(ctx.resources, bitmap)
 }
 
+// Marker merah untuk posisi GPS realtime anggota grup (label nama user di atas pin)
+fun createLiveMarkerIcon(ctx: android.content.Context, label: String): android.graphics.drawable.BitmapDrawable {
+    val text = label.ifEmpty { "User" }.take(20)
+    val paint = android.graphics.Paint().apply {
+        color = android.graphics.Color.WHITE
+        textSize = 34f
+        isAntiAlias = true
+        textAlign = android.graphics.Paint.Align.CENTER
+    }
+    val bgPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.argb(220, 180, 20, 20)
+        isAntiAlias = true
+    }
+    val paddingH = 18f
+    val paddingV = 12f
+    val textWidth = paint.measureText(text)
+    val fm = paint.fontMetrics
+    val textHeight = fm.descent - fm.ascent
+    val labelW = (textWidth + paddingH * 2).toInt()
+    val labelH = (textHeight + paddingV * 2).toInt()
+    val pinH = 56
+    val pinW = 40
+    val width = maxOf(labelW, pinW + 20)
+    val height = labelH + pinH + 8
+    val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    val rect = android.graphics.RectF(
+        ((width - labelW) / 2f), 0f,
+        ((width + labelW) / 2f), labelH.toFloat()
+    )
+    canvas.drawRoundRect(rect, 14f, 14f, bgPaint)
+    canvas.drawText(text, width / 2f, paddingV - fm.ascent, paint)
+    val cx = width / 2f
+    val pinTop = labelH + 4f
+    val pinPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.parseColor("#D32F2F")
+        isAntiAlias = true
+    }
+    canvas.drawCircle(cx, pinTop + 18f, 18f, pinPaint)
+    val path = android.graphics.Path().apply {
+        moveTo(cx - 13f, pinTop + 28f)
+        lineTo(cx + 13f, pinTop + 28f)
+        lineTo(cx, pinTop + 52f)
+        close()
+    }
+    canvas.drawPath(path, pinPaint)
+    // Titik putih di tengah pin (tanda posisi live)
+    val dotPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.WHITE
+        isAntiAlias = true
+    }
+    canvas.drawCircle(cx, pinTop + 18f, 7f, dotPaint)
+    return android.graphics.drawable.BitmapDrawable(ctx.resources, bitmap)
+}
+
 @Composable
 fun MapView(
     locations: List<GeoLocation>,
     currentLocation: android.location.Location?,
+    liveLocations: List<LiveLocation>,
     onMarkerClick: (String) -> Unit
 ) {
     val latestOnMarkerClick by rememberUpdatedState(onMarkerClick)
@@ -653,6 +712,19 @@ fun MapView(
                     me.position = org.osmdroid.util.GeoPoint(it.latitude, it.longitude)
                     me.title = "Lokasi saya"
                     mapView.overlays.add(me)
+                }
+                // Marker merah: posisi GPS realtime anggota grup (dengan nama user)
+                liveLocations.forEach { live ->
+                    val marker = org.osmdroid.views.overlay.Marker(mapView)
+                    marker.position = org.osmdroid.util.GeoPoint(live.latitude, live.longitude)
+                    val name = live.displayName.ifEmpty { live.email.substringBefore("@") }
+                    marker.title = name
+                    marker.icon = createLiveMarkerIcon(mapView.context, name)
+                    marker.setAnchor(
+                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                        org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
+                    )
+                    mapView.overlays.add(marker)
                 }
                 if (!hasCentered && (locations.isNotEmpty() || currentLocation != null)) {
                     hasCentered = true

@@ -4,6 +4,7 @@ import android.net.Uri
 import com.geotag.app.data.model.GeoLocation
 import com.geotag.app.data.model.Group
 import com.geotag.app.data.model.Invitation
+import com.geotag.app.data.model.LiveLocation
 import com.geotag.app.data.model.UserProfile
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -280,4 +281,55 @@ class FirebaseService {
             emptyList()
         }
     }
+
+    // ===== LIVE LOCATION (posisi realtime anggota grup) =====
+
+    suspend fun updateLiveLocation(
+        uid: String,
+        email: String,
+        displayName: String,
+        latitude: Double,
+        longitude: Double
+    ) {
+        try {
+            firestore.collection("live_locations")
+                .document(uid)
+                .set(
+                    mapOf(
+                        "uid" to uid,
+                        "email" to email,
+                        "displayName" to displayName,
+                        "latitude" to latitude,
+                        "longitude" to longitude,
+                        "updatedAt" to System.currentTimeMillis()
+                    )
+                )
+                .await()
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseService", "Update live loc gagal: ${e.message}")
+        }
+    }
+
+    /** Listener realtime posisi anggota grup (whereIn maks 10 member). */
+    fun listenGroupLiveLocations(memberEmails: List<String>): kotlinx.coroutines.flow.Flow<List<LiveLocation>> =
+        kotlinx.coroutines.flow.callbackFlow {
+            if (memberEmails.isEmpty()) {
+                trySend(emptyList())
+                close()
+                return@callbackFlow
+            }
+            val listener = firestore.collection("live_locations")
+                .whereIn("email", memberEmails.take(10))
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        close(error)
+                        return@addSnapshotListener
+                    }
+                    val list = snapshot?.documents?.mapNotNull { doc ->
+                        doc.toObject(LiveLocation::class.java)
+                    } ?: emptyList()
+                    trySend(list)
+                }
+            awaitClose { listener.remove() }
+        }
 }

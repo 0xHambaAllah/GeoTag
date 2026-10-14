@@ -9,11 +9,15 @@ import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.geotag.app.data.model.GeoLocation
+import com.geotag.app.data.model.LiveLocation
 import com.geotag.app.util.AppConstants
 import com.geotag.app.data.repository.LocationRepository
 import com.geotag.app.util.LocationUtils
 import com.geotag.app.util.PhotoUtils
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -69,6 +73,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     // Jumlah undangan grup pending (untuk badge notifikasi)
     private val _invitationCount = MutableStateFlow(0)
     val invitationCount: StateFlow<Int> = _invitationCount
+
+    // Posisi GPS realtime anggota grup (marker merah di peta)
+    private val _liveLocations = MutableStateFlow<List<LiveLocation>>(emptyList())
+    val liveLocations: StateFlow<List<LiveLocation>> = _liveLocations
+
+    private var liveSharingJob: Job? = null
+    private var liveListenerJob: Job? = null
 
     fun refreshInvitationCount() {
         viewModelScope.launch {
@@ -140,17 +151,78 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     .flatMap { it.members }
                     .map { it.lowercase() }
                     .distinct()
-                    .filter { it != email.lowercase() }
-                _groupLocations.value = if (memberEmails.isNotEmpty()) {
-                    repository.firebase.getLocationsByEmails(memberEmails)
+                val others = memberEmails.filter { it != email.lowercase() }
+                _groupLocations.value = if (others.isNotEmpty()) {
+                    repository.firebase.getLocationsByEmails(others)
                 } else {
                     emptyList()
                 }
+                // Live location: dengarkan posisi anggota grup & bagikan posisi saya
+                startLiveListener(others)
+                if (others.isNotEmpty()) startLiveSharing() else stopLiveSharing()
             } catch (e: Exception) {
                 // Biarkan data lama, jangan crash
                 e.printStackTrace()
             }
         }
+    }
+
+    /**
+     * Bagikan posisi GPS saya ke Firestore setiap 30 detik,
+     * hanya saat tergabung dalam grup (ada anggota lain).
+     */
+    private fun startLiveSharing() {
+        if (liveSharingJob?.isActive == true) return
+        liveSharingJob = viewModelScope.launch {
+            while (isActive) {
+                try {
+                    val loc = LocationUtils.getCurrentLocation(getApplication())
+                    val email = userEmail
+                    val uid = _userId.value
+                    if (loc != null && email != null && uid != null) {
+                        repository.firebase.updateLiveLocation(
+                            uid = uid,
+                            email = email,
+                            displayName = repository.firebase.currentUserName ?: "",
+                            latitude = loc.latitude,
+                            longitude = loc.longitude
+                        )
+                    }
+                } catch (_: Exception) { }
+                delay(30_000)
+            }
+        }
+    }
+
+    private fun stopLiveSharing() {
+        liveSharingJob?.cancel()
+        liveSharingJob = null
+    }
+
+    /**
+     * Dengarkan posisi realtime anggota grup (buang data basi > 5 menit —
+     * user sudah menutup aplikasi).
+     */
+    private fun startLiveListener(others: List<String>) {
+        liveListenerJob?.cancel()
+        if (others.isEmpty()) {
+            _liveLocations.value = emptyList()
+            return
+        }
+        liveListenerJob = viewModelScope.launch {
+            repository.firebase.listenGroupLiveLocations(others).collect { list ->
+                val now = System.currentTimeMillis()
+                _liveLocations.value = list.filter {
+                    now - it.updatedAt < 5 * 60 * 1000
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        stopLiveSharing()
+        liveListenerJob?.cancel()
+        super.onCleared()
     }
     
     fun triggerBackup() {
