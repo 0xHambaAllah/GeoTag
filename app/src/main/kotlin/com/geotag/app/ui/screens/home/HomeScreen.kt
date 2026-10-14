@@ -460,6 +460,57 @@ private fun formatTimestamp(timestamp: Long): String {
     return sdf.format(Date(timestamp))
 }
 
+// Membuat icon marker dengan label nama di atasnya
+fun createLabeledMarkerIcon(ctx: android.content.Context, label: String): android.graphics.drawable.BitmapDrawable {
+    val text = label.ifEmpty { "Tanpa nama" }.take(20)
+    val paint = android.graphics.Paint().apply {
+        color = android.graphics.Color.WHITE
+        textSize = 34f
+        isAntiAlias = true
+        textAlign = android.graphics.Paint.Align.CENTER
+    }
+    val bgPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.argb(220, 20, 20, 20)
+        isAntiAlias = true
+    }
+    val paddingH = 18f
+    val paddingV = 12f
+    val textWidth = paint.measureText(text)
+    val fm = paint.fontMetrics
+    val textHeight = fm.descent - fm.ascent
+    val labelW = (textWidth + paddingH * 2).toInt()
+    val labelH = (textHeight + paddingV * 2).toInt()
+    val pinH = 56
+    val pinW = 40
+    val width = maxOf(labelW, pinW + 20)
+    val height = labelH + pinH + 8
+    val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    // Label: rounded rect hitam + teks putih
+    val rect = android.graphics.RectF(
+        ((width - labelW) / 2f), 0f,
+        ((width + labelW) / 2f), labelH.toFloat()
+    )
+    canvas.drawRoundRect(rect, 14f, 14f, bgPaint)
+    canvas.drawText(text, width / 2f, paddingV - fm.ascent, paint)
+    // Pin: lingkaran + segitiga di bawah label
+    val cx = width / 2f
+    val pinTop = labelH + 4f
+    val pinPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.parseColor("#2E7D32")
+        isAntiAlias = true
+    }
+    canvas.drawCircle(cx, pinTop + 18f, 18f, pinPaint)
+    val path = android.graphics.Path().apply {
+        moveTo(cx - 13f, pinTop + 28f)
+        lineTo(cx + 13f, pinTop + 28f)
+        lineTo(cx, pinTop + 52f)
+        close()
+    }
+    canvas.drawPath(path, pinPaint)
+    return android.graphics.drawable.BitmapDrawable(ctx.resources, bitmap)
+}
+
 @Composable
 fun MapView(
     locations: List<GeoLocation>,
@@ -502,6 +553,7 @@ fun MapView(
                     val marker = org.osmdroid.views.overlay.Marker(mapView)
                     marker.position = org.osmdroid.util.GeoPoint(loc.latitude, loc.longitude)
                     marker.title = loc.name.ifEmpty { "Tanpa nama" }
+                    marker.icon = createLabeledMarkerIcon(mapView.context, loc.name)
                     marker.setAnchor(
                         org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
                         org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
@@ -531,60 +583,5 @@ fun MapView(
 
 
         
-        // Overlay with location count and markers info
-        if (locations.isNotEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .align(Alignment.BottomStart)
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                    shape = RoundedCornerShape(12.dp),
-                    shadowElevation = 4.dp
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            "${locations.size} Lokasi Tersimpan",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        locations.take(3).forEach { location ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onMarkerClick(location.id) }
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.LocationOn,
-                                    null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    location.name.ifEmpty { location.address.take(30) },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                        if (locations.size > 3) {
-                            Text(
-                                "+ ${locations.size - 3} lokasi lainnya",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(start = 24.dp, top = 4.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
