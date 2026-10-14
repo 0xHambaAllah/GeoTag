@@ -47,6 +47,7 @@ fun HomeScreen(
     val currentLocation by viewModel.currentLocation.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val userId by viewModel.userId.collectAsState()
+    val invitationCount by viewModel.invitationCount.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
     var showPhotoSourceDialog by remember { mutableStateOf(false) }
     
@@ -126,8 +127,22 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onGroupClick) {
-                        Icon(Icons.Default.Group, "Grup")
+                    // Ikon grup dengan badge jumlah undangan
+                    BadgedBox(
+                        badge = {
+                            if (invitationCount > 0) {
+                                Badge(containerColor = MaterialTheme.colorScheme.error) {
+                                    Text("$invitationCount")
+                                }
+                            }
+                        }
+                    ) {
+                        IconButton(onClick = {
+                            viewModel.refreshInvitationCount()
+                            onGroupClick()
+                        }) {
+                            Icon(Icons.Default.Group, "Grup")
+                        }
                     }
                     IconButton(onClick = onRouteClick) {
                         Icon(Icons.Default.Route, "Buat Rute")

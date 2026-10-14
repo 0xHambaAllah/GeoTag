@@ -65,6 +65,21 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             .sortedByDescending { it.timestamp }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Jumlah undangan grup pending (untuk badge notifikasi)
+    private val _invitationCount = MutableStateFlow(0)
+    val invitationCount: StateFlow<Int> = _invitationCount
+
+    fun refreshInvitationCount() {
+        viewModelScope.launch {
+            val email = userEmail ?: return@launch
+            try {
+                _invitationCount.value = repository.firebase.getMyInvitations(email).size
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     init {
         refreshLocation()
         // Auto restore data saat login
@@ -83,6 +98,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     // User baru login, sync data dari Firebase
                     syncFromRemote()
                     refreshGroupLocations()
+                    refreshInvitationCount()
                 }
             }
         }
@@ -106,6 +122,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _isRefreshing.value = false
         }
         refreshGroupLocations()
+        refreshInvitationCount()
     }
 
     /**
