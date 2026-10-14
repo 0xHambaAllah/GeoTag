@@ -203,8 +203,8 @@ fun LocationPickerScreen(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nama lokasi *") },
-                    placeholder = { Text("Wajib diisi") },
+                    label = { Text("Nama alamat *") },
+                    placeholder = { Text("Contoh: Rumah, Toko, Kantor, Masjid") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     isError = name.isBlank()
