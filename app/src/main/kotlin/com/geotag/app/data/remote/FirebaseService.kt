@@ -313,7 +313,8 @@ class FirebaseService {
                 .set(
                     mapOf(
                         "uid" to uid,
-                        "email" to email,
+                        // Lowercase: query listener memakai email lowercase (whereIn peka huruf besar/kecil)
+                        "email" to email.lowercase(),
                         "displayName" to displayName,
                         "latitude" to latitude,
                         "longitude" to longitude,
@@ -335,7 +336,7 @@ class FirebaseService {
                 return@callbackFlow
             }
             val listener = firestore.collection("live_locations")
-                .whereIn("email", memberEmails.take(10))
+                .whereIn("email", memberEmails.map { it.lowercase() }.take(10))
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
                         // Jangan close dengan error — listener gagal tidak boleh crash aplikasi

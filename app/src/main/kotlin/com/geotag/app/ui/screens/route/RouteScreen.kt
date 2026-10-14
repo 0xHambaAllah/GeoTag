@@ -87,6 +87,9 @@ fun createStartMarkerIcon(ctx: android.content.Context): android.graphics.drawab
     canvas.drawPath(path, colorPaint)
     return android.graphics.drawable.BitmapDrawable(ctx.resources, bitmap)
 }
+
+@Composable
+fun RouteMapView(
     route: List<GeoLocation>,
     routePoints: List<GeoPoint>,
     currentLocation: android.location.Location?
