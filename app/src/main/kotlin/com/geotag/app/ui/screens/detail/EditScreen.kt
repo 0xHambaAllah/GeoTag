@@ -43,7 +43,11 @@ fun EditScreen(
 
     LaunchedEffect(locationId) {
         val db = GeoTagDatabase.getDatabase(context)
-        val loc = db.locationDao().getLocationById(locationId)
+        var loc = db.locationDao().getLocationById(locationId)
+        if (loc == null) {
+            // Data anggota grup (diedit Admin App) tidak ada di Room — ambil dari Firestore
+            loc = repository.firebase.getLocationById(locationId)
+        }
         location = loc
         loc?.let {
             name = it.name

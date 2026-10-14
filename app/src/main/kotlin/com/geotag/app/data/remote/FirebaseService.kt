@@ -133,6 +133,19 @@ class FirebaseService {
             }
     }
 
+    /** Ambil satu lokasi by ID (untuk detail data anggota grup yang tidak ada di Room). */
+    suspend fun getLocationById(locationId: String): GeoLocation? {
+        return try {
+            val doc = firestore.collection("locations")
+                .document(locationId)
+                .get()
+                .await()
+            if (doc.exists()) doc.toObject(GeoLocation::class.java)?.copy(isSynced = true) else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     suspend fun updateLocation(location: GeoLocation) {
         firestore.collection("locations")
             .document(location.id)

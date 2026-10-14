@@ -39,15 +39,22 @@ fun DetailScreen(
     var location by remember { mutableStateOf<GeoLocation?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var currentDistance by remember { mutableStateOf<Float?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(locationId) {
         val db = GeoTagDatabase.getDatabase(context)
-        location = db.locationDao().getLocationById(locationId)
+        var loc = db.locationDao().getLocationById(locationId)
+        if (loc == null) {
+            // Data anggota grup tidak ada di Room lokal — ambil dari Firestore
+            loc = repository.firebase.getLocationById(locationId)
+        }
+        location = loc
+        isLoading = false
         val curLoc = LocationUtils.getCurrentLocation(context)
         curLoc?.let { cur ->
-            location?.let { loc ->
+            location?.let { l ->
                 currentDistance = LocationUtils.calculateDistance(
-                    cur.latitude, cur.longitude, loc.latitude, loc.longitude
+                    cur.latitude, cur.longitude, l.latitude, l.longitude
                 )
             }
         }
@@ -276,7 +283,19 @@ fun DetailScreen(
                 .padding(padding),
             contentAlignment = Alignment.Center
         ) {
-            CircularProgressIndicator()
+            if (isLoading) {
+                CircularProgressIndicator()
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "Data tidak ditemukan",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = onBack) { Text("Kembali") }
+                }
+            }
         }
     }
 }
