@@ -230,6 +230,11 @@ fun CameraScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                                     )
+                                    Text(
+                                        "Plus Code: ${com.geotag.app.util.PlusCode.encode(loc.latitude, loc.longitude)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                    )
                                 }
                             }
                         }
@@ -237,15 +242,17 @@ fun CameraScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Name input (optional)
+                    // Name input (wajib — nama alamat)
                     OutlinedTextField(
                         value = uiState.name,
                         onValueChange = { viewModel.onNameChange(it) },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Nama lokasi (opsional)") },
+                        label = { Text("Nama alamat *") },
+                        placeholder = { Text("Contoh: Rumah, Toko, Kantor, Masjid") },
                         leadingIcon = { Icon(Icons.Default.Label, null) },
                         shape = RoundedCornerShape(12.dp),
-                        singleLine = true
+                        singleLine = true,
+                        isError = uiState.name.isBlank()
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -282,7 +289,7 @@ fun CameraScreen(
                         Button(
                             onClick = { viewModel.saveLocation(onSaved) },
                             modifier = Modifier.weight(1f),
-                            enabled = !uiState.isSaving
+                            enabled = !uiState.isSaving && uiState.name.isNotBlank()
                         ) {
                             if (uiState.isSaving) {
                                 CircularProgressIndicator(

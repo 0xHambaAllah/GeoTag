@@ -74,6 +74,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         val location = state.location
         val photoFile = state.photoFile
 
+        if (state.name.isBlank()) {
+            _uiState.value = _uiState.value.copy(error = "Nama alamat wajib diisi.")
+            return
+        }
         if (location == null) {
             _uiState.value = _uiState.value.copy(error = "Lokasi belum tersedia. Pastikan GPS aktif.")
             return
