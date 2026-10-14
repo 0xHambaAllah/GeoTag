@@ -7,14 +7,33 @@ import androidx.lifecycle.viewModelScope
 import com.geotag.app.data.model.GeoLocation
 import com.geotag.app.data.repository.LocationRepository
 import com.geotag.app.util.LocationUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import org.osmdroid.util.GeoPoint
 
 class RouteViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = LocationRepository(application)
     
     private val _selectedLocations = MutableStateFlow<List<GeoLocation>>(emptyList())
     val selectedLocations: StateFlow<List<GeoLocation>> = _selectedLocations
+    
+    // Rute yang sudah diurutkan (untuk tampil di peta & navigasi)
+    private val _sortedRoute = MutableStateFlow<List<GeoLocation>>(emptyList())
+    val sortedRoute: StateFlow<List<GeoLocation>> = _sortedRoute
+    
+    // Titik-titik polyline rute dari OSRM
+    private val _routePoints = MutableStateFlow<List<GeoPoint>>(emptyList())
+    val routePoints: StateFlow<List<GeoPoint>> = _routePoints
+    
+    // Info rute: Pair(jarakKm, durasiMenit)
+    private val _routeInfo = MutableStateFlow<Pair<Double, Double>?>(null)
+    val routeInfo: StateFlow<Pair<Double, Double>?> = _routeInfo
+    
+    private val _isLoadingRoute = MutableStateFlow(false)
+    val isLoadingRoute: StateFlow<Boolean> = _isLoadingRoute
     
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
@@ -64,6 +83,68 @@ class RouteViewModel(application: Application) : AndroidViewModel(application) {
     
     fun clearSelection() {
         _selectedLocations.value = emptyList()
+        _sortedRoute.value = emptyList()
+        _routePoints.value = emptyList()
+        _routeInfo.value = null
+    }
+    
+    /**
+     * Urutkan rute dari lokasi terdekat ke terjauh (dari posisi saat ini),
+     * lalu ambil garis rute dari OSRM untuk ditampilkan di peta.
+     */
+    fun sortRoute() {
+        val route = calculateOptimizedRoute()
+        _sortedRoute.value = route
+        if (route.size >= 2) {
+            viewModelScope.launch {
+                fetchOsrmRoute(route)
+            }
+        } else {
+            _routePoints.value = emptyList()
+            _routeInfo.value = null
+        }
+    }
+    
+    /**
+     * Ambil garis rute driving dari OSRM (gratis, tanpa API key).
+     * Mengisi _routePoints (polyline) dan _routeInfo (jarak & durasi).
+     */
+    private suspend fun fetchOsrmRoute(route: List<GeoLocation>) {
+        _isLoadingRoute.value = true
+        try {
+            val coords = route.joinToString(";") { "${it.longitude},${it.latitude}" }
+            val url = "https://router.project-osrm.org/route/v1/driving/$coords?overview=full&geometries=geojson"
+            val client = okhttp3.OkHttpClient()
+            val request = okhttp3.Request.Builder().url(url).build()
+            val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+            if (response.isSuccessful) {
+                val json = JSONObject(response.body?.string() ?: "{}")
+                val routes = json.optJSONArray("routes")
+                if (routes != null && routes.length() > 0) {
+                    val r = routes.getJSONObject(0)
+                    val distanceKm = r.optDouble("distance", 0.0) / 1000.0
+                    val durationMin = r.optDouble("duration", 0.0) / 60.0
+                    _routeInfo.value = Pair(distanceKm, durationMin)
+                    val geom = r.optJSONObject("geometry")
+                    val coordsArr = geom?.optJSONArray("coordinates")
+                    if (coordsArr != null) {
+                        val points = mutableListOf<GeoPoint>()
+                        for (i in 0 until coordsArr.length()) {
+                            val c = coordsArr.getJSONArray(i)
+                            points.add(GeoPoint(c.getDouble(1), c.getDouble(0)))
+                        }
+                        _routePoints.value = points
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback: garis lurus antar lokasi jika OSRM gagal
+            _routePoints.value = route.map { GeoPoint(it.latitude, it.longitude) }
+            _routeInfo.value = null
+        } finally {
+            _isLoadingRoute.value = false
+        }
     }
     
     /**

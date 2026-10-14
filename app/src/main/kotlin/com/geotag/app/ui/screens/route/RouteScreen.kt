@@ -15,6 +15,116 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.geotag.app.data.model.GeoLocation
+import org.osmdroid.util.GeoPoint
+
+// Icon marker bernomor (1, 2, 3...) seperti contoh: lingkaran berwarna + angka putih
+fun createNumberedMarkerIcon(ctx: android.content.Context, number: Int, colorHex: String): android.graphics.drawable.BitmapDrawable {
+    val size = 100
+    val bitmap = android.graphics.Bitmap.createBitmap(size, size + 24, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    val cx = size / 2f
+    val cy = size / 2f
+    val colorPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.parseColor(colorHex)
+        isAntiAlias = true
+    }
+    val whitePaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.WHITE
+        isAntiAlias = true
+    }
+    val textPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.parseColor(colorHex)
+        textSize = 46f
+        isAntiAlias = true
+        textAlign = android.graphics.Paint.Align.CENTER
+        isFakeBoldText = true
+    }
+    // Lingkaran luar berwarna
+    canvas.drawCircle(cx, cy, 44f, colorPaint)
+    // Lingkaran dalam putih
+    canvas.drawCircle(cx, cy, 34f, whitePaint)
+    // Angka
+    val fm = textPaint.fontMetrics
+    canvas.drawText(number.toString(), cx, cy - (fm.ascent + fm.descent) / 2, textPaint)
+    // Pin segitiga di bawah
+    val path = android.graphics.Path().apply {
+        moveTo(cx - 11f, cy + 40f)
+        lineTo(cx + 11f, cy + 40f)
+        lineTo(cx, cy + 58f)
+        close()
+    }
+    canvas.drawPath(path, colorPaint)
+    return android.graphics.drawable.BitmapDrawable(ctx.resources, bitmap)
+}
+
+@Composable
+fun RouteMapView(
+    route: List<GeoLocation>,
+    routePoints: List<GeoPoint>,
+    currentLocation: android.location.Location?
+) {
+    Box(modifier = Modifier.fillMaxWidth().height(280.dp)) {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { ctx ->
+                org.osmdroid.config.Configuration.getInstance().userAgentValue = ctx.packageName
+                org.osmdroid.views.MapView(ctx).apply {
+                    setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+                    setMultiTouchControls(true)
+                }
+            },
+            update = { mapView ->
+                mapView.overlays.clear()
+                // Garis rute (polyline biru)
+                if (routePoints.size >= 2) {
+                    val polyline = org.osmdroid.views.overlay.Polyline().apply {
+                        setPoints(routePoints)
+                        outlinePaint.color = android.graphics.Color.parseColor("#1565C0")
+                        outlinePaint.strokeWidth = 10f
+                    }
+                    mapView.overlays.add(polyline)
+                }
+                // Marker bernomor sesuai urutan kunjungan
+                route.forEachIndexed { index, loc ->
+                    val marker = org.osmdroid.views.overlay.Marker(mapView)
+                    marker.position = GeoPoint(loc.latitude, loc.longitude)
+                    marker.title = "${index + 1}. ${loc.name.ifEmpty { "Tanpa nama" }}"
+                    // Marker 1 hijau, sisanya biru (seperti contoh)
+                    val color = if (index == 0) "#2E7D32" else "#1565C0"
+                    marker.icon = createNumberedMarkerIcon(mapView.context, index + 1, color)
+                    marker.setAnchor(
+                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                        org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
+                    )
+                    mapView.overlays.add(marker)
+                }
+                // Lokasi saat ini
+                currentLocation?.let {
+                    val me = org.osmdroid.views.overlay.Marker(mapView)
+                    me.position = GeoPoint(it.latitude, it.longitude)
+                    me.title = "Lokasi saya"
+                    mapView.overlays.add(me)
+                }
+                // Fit ke semua marker
+                val allPoints = mutableListOf<GeoPoint>()
+                allPoints.addAll(route.map { GeoPoint(it.latitude, it.longitude) })
+                currentLocation?.let { allPoints.add(GeoPoint(it.latitude, it.longitude)) }
+                if (allPoints.isNotEmpty()) {
+                    try {
+                        val bbox = org.osmdroid.util.BoundingBox.fromGeoPoints(allPoints)
+                        mapView.zoomToBoundingBox(bbox.increaseByScale(1.3f), false)
+                    } catch (e: Exception) {
+                        if (allPoints.size == 1) {
+                            mapView.controller.setZoom(15.0)
+                            mapView.controller.setCenter(allPoints[0])
+                        }
+                    }
+                }
+                mapView.invalidate()
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,6 +134,10 @@ fun RouteScreen(
 ) {
     val locations by viewModel.locations.collectAsState()
     val selectedLocations by viewModel.selectedLocations.collectAsState()
+    val sortedRoute by viewModel.sortedRoute.collectAsState()
+    val routePoints by viewModel.routePoints.collectAsState()
+    val routeInfo by viewModel.routeInfo.collectAsState()
+    val isLoadingRoute by viewModel.isLoadingRoute.collectAsState()
     val currentLocation by viewModel.currentLocation.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val context = LocalContext.current
@@ -65,9 +179,9 @@ fun RouteScreen(
                         )
                         Button(
                             onClick = {
-                                val optimizedRoute = viewModel.calculateOptimizedRoute()
-                                if (optimizedRoute.isNotEmpty()) {
-                                    openGoogleMapsRoute(context, optimizedRoute, viewModel)
+                                val route = sortedRoute.ifEmpty { viewModel.calculateOptimizedRoute() }
+                                if (route.isNotEmpty()) {
+                                    openGoogleMapsRoute(context, route, viewModel)
                                 }
                             },
                             enabled = selectedLocations.size >= 2
@@ -150,6 +264,109 @@ fun RouteScreen(
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
+                }
+
+                // Peta rute + tombol urutkan (muncul jika 2+ lokasi dipilih)
+                if (selectedLocations.size >= 2) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Pratinjau Rute",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Button(
+                                    onClick = { viewModel.sortRoute() },
+                                    enabled = !isLoadingRoute
+                                ) {
+                                    if (isLoadingRoute) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Sort, null, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Urutkan Rute")
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            if (sortedRoute.isNotEmpty()) {
+                                // Peta dengan marker bernomor + garis rute
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(280.dp),
+                                ) {
+                                    RouteMapView(
+                                        route = sortedRoute,
+                                        routePoints = routePoints,
+                                        currentLocation = currentLocation
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                // Info jarak & durasi
+                                routeInfo?.let { (km, min) ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            "Estimasi Jarak",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            String.format("%.2f km", km).replace('.', ','),
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            "Estimasi Durasi",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            String.format("%.1f menit", min).replace('.', ','),
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    "Urutan kunjungan:",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                sortedRoute.forEachIndexed { index, loc ->
+                                    Text(
+                                        "${index + 1}. ${loc.name.ifEmpty { "Tanpa nama" }}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    "Tekan \"Urutkan Rute\" untuk mengurutkan dari lokasi terdekat dan melihat peta rute.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
                 LazyColumn(
