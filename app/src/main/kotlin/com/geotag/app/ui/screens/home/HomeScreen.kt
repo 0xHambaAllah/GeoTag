@@ -349,6 +349,7 @@ fun LocationCard(
     onDelete: () -> Unit,
     canManage: Boolean = true
 ) {
+    val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     if (showDeleteDialog) {
@@ -508,6 +509,27 @@ fun LocationCard(
                         Icon(Icons.Default.Navigation, null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Navigasi", style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    // Tombol chat WhatsApp (hanya bila ada nomor)
+                    if (location.phoneNumber.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = {
+                                com.geotag.app.util.WhatsAppUtils.openChat(
+                                    context,
+                                    location.phoneNumber
+                                )
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Chat,
+                                "Chat WhatsApp",
+                                modifier = Modifier.size(18.dp),
+                                tint = androidx.compose.ui.graphics.Color(0xFF25D366)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(8.dp))

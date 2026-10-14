@@ -139,7 +139,9 @@ class FirebaseService {
             .update(mapOf(
                 "name" to location.name,
                 "phoneNumber" to location.phoneNumber,
-                "address" to location.address
+                "address" to location.address,
+                "latitude" to location.latitude,
+                "longitude" to location.longitude
             )).await()
     }
 

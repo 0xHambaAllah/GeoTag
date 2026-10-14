@@ -141,6 +141,23 @@ fun DetailScreen(
                             Icon(Icons.Default.Phone, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(loc.phoneNumber, style = MaterialTheme.typography.bodyLarge)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            FilledTonalButton(
+                                onClick = {
+                                    com.geotag.app.util.WhatsAppUtils.openChat(context, loc.phoneNumber)
+                                },
+                                modifier = Modifier.height(32.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Chat,
+                                    null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = androidx.compose.ui.graphics.Color(0xFF25D366)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("WhatsApp", style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                     }
