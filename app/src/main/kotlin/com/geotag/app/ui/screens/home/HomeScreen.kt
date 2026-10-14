@@ -127,21 +127,26 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    // Ikon grup dengan badge jumlah undangan
-                    BadgedBox(
-                        badge = {
-                            if (invitationCount > 0) {
-                                Badge(containerColor = MaterialTheme.colorScheme.error) {
-                                    Text("$invitationCount")
-                                }
-                            }
-                        }
-                    ) {
+                    // Ikon grup dengan badge jumlah undangan (melekat di pojok ikon)
+                    Box {
                         IconButton(onClick = {
                             viewModel.refreshInvitationCount()
                             onGroupClick()
                         }) {
                             Icon(Icons.Default.Group, "Grup")
+                        }
+                        if (invitationCount > 0) {
+                            Badge(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = (-6).dp, y = 6.dp),
+                                containerColor = MaterialTheme.colorScheme.error
+                            ) {
+                                Text(
+                                    "$invitationCount",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
                         }
                     }
                     IconButton(onClick = onRouteClick) {
@@ -314,7 +319,8 @@ fun HomeScreen(
                                     )
                                 }
                             },
-                            onDelete = { viewModel.deleteLocation(location) }
+                            onDelete = { viewModel.deleteLocation(location) },
+                            canManage = viewModel.canManage(location)
                         )
                     }
                 }
@@ -336,7 +342,8 @@ fun LocationCard(
     currentLocation: android.location.Location?,
     onClick: () -> Unit,
     onNavigate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    canManage: Boolean = true
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -501,16 +508,19 @@ fun LocationCard(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    IconButton(
-                        onClick = { showDeleteDialog = true },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            "Hapus",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                    // Tombol hapus hanya untuk pemilik data / Admin App
+                    if (canManage) {
+                        IconButton(
+                            onClick = { showDeleteDialog = true },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                "Hapus",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
 
                     // Sync indicator

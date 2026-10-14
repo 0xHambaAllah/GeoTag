@@ -27,13 +27,27 @@ class LocationRepository(private val context: Context) {
     }
 
     suspend fun updateLocation(location: GeoLocation) {
+        if (!canManage(location)) return
         dao.updateLocation(location)
         try {
             firebase.updateLocation(location)
         } catch (_: Exception) {}
     }
 
+    /**
+     * Hanya pemilik data atau Admin App yang boleh edit/hapus.
+     * Data grup selalu punya creatorEmail (query grup pakai field itu),
+     * jadi creatorEmail kosong = data lokal sendiri.
+     */
+    private fun canManage(location: GeoLocation): Boolean {
+        val email = firebase.currentUserEmail ?: return false
+        if (AppConstants.isAdminApp(email)) return true
+        if (location.creatorEmail.isEmpty()) return true
+        return location.creatorEmail.equals(email, ignoreCase = true)
+    }
+
     suspend fun deleteLocation(location: GeoLocation) {
+        if (!canManage(location)) return
         dao.deleteLocation(location)
         try {
             firebase.deleteLocation(location.id, location.userId)
@@ -61,7 +75,7 @@ class LocationRepository(private val context: Context) {
                             
                             val photoFile = File(photoDir, "${remote.id}.jpg")
                             
-                            // Download dari URL langsung ImgBB
+                            // Download dari URL langsung Cloudinary
                             val success = firebase.downloadPhoto(remote.photoUrl, photoFile)
                             if (success) {
                                 localPath = photoFile.absolutePath

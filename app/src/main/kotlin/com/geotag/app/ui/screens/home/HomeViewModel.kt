@@ -171,7 +171,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun canManage(location: GeoLocation): Boolean {
+        val email = userEmail ?: return false
+        if (AppConstants.isAdminApp(email)) return true
+        // Data lokal lama tanpa creatorEmail dianggap milik sendiri
+        // (data grup selalu punya creatorEmail karena query grup pakai field itu)
+        if (location.creatorEmail.isEmpty()) return true
+        return location.creatorEmail.equals(email, ignoreCase = true)
+    }
+
     fun deleteLocation(location: GeoLocation) {
+        if (!canManage(location)) return
         viewModelScope.launch {
             repository.deleteLocation(location)
         }

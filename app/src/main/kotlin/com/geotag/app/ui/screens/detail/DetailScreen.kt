@@ -53,6 +53,15 @@ fun DetailScreen(
         }
     }
 
+    // Hanya pemilik data / Admin App yang boleh edit & hapus
+    val canManage = remember(location) {
+        val loc = location ?: return@remember false
+        val email = repository.firebase.currentUserEmail ?: return@remember false
+        if (com.geotag.app.util.AppConstants.isAdminApp(email)) true
+        else if (loc.creatorEmail.isEmpty()) true
+        else loc.creatorEmail.equals(email, ignoreCase = true)
+    }
+
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -85,11 +94,13 @@ fun DetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, "Edit")
-                    }
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Default.Delete, "Hapus", tint = MaterialTheme.colorScheme.error)
+                    if (canManage) {
+                        IconButton(onClick = onEdit) {
+                            Icon(Icons.Default.Edit, "Edit")
+                        }
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Default.Delete, "Hapus", tint = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             )
