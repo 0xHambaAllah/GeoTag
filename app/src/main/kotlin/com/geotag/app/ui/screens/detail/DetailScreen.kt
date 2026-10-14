@@ -168,6 +168,19 @@ fun DetailScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    // Plus Code (akurat di Google Maps)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.QrCode, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Plus Code: ${com.geotag.app.util.PlusCode.encode(loc.latitude, loc.longitude)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     // Distance
                     currentDistance?.let { dist ->
                         Row(verticalAlignment = Alignment.CenterVertically) {

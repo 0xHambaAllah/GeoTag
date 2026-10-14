@@ -271,7 +271,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _userId.value = null
     }
     
-    fun handleGalleryPhoto(context: Context, uri: Uri, onNeedManualLocation: (String) -> Unit) {
+    fun handleGalleryPhoto(context: Context, uri: Uri, onNeedManualLocation: (String, Double, Double) -> Unit) {
         viewModelScope.launch {
             try {
                 // Copy photo to app storage
@@ -281,55 +281,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         input.copyTo(output)
                     }
                 }
-                
-                // Extract EXIF GPS data
+
+                // Extract EXIF GPS data (bila ada, jadi titik awal di picker)
                 val exif = ExifInterface(photoFile.absolutePath)
                 val latLong = FloatArray(2)
                 val hasGps = exif.getLatLong(latLong)
-                
-                val latitude: Double
-                val longitude: Double
-                
-                if (hasGps) {
-                    // Photo has GPS data - use it
-                    latitude = latLong[0].toDouble()
-                    longitude = latLong[1].toDouble()
-                } else {
-                    // Foto tanpa GPS -> wajib input manual (alamat + koordinat di peta)
-                    onNeedManualLocation(photoFile.absolutePath)
-                    return@launch
-                }
-                
-                val address = LocationUtils.getAddressFromLocation(
-                    getApplication(),
-                    latitude,
-                    longitude
-                )
-                
-                val uid = _userId.value ?: throw Exception("User not logged in")
-                val geoLocation = GeoLocation(
-                    userId = uid,
-                    creatorEmail = repository.firebase.currentUserEmail ?: "",
-                    name = "",
-                    phoneNumber = "",
-                    photoLocalPath = photoFile.absolutePath,
-                    latitude = latitude,
-                    longitude = longitude,
-                    address = address,
-                    timestamp = System.currentTimeMillis(),
-                    isSynced = false
-                )
-                
-                repository.saveLocation(geoLocation)
-                
-                // Trigger auto backup
-                com.geotag.app.data.remote.SyncWorker.enqueue(context)
-                
-                Toast.makeText(
-                    context, 
-                    "Foto dari galeri berhasil disimpan! Backup ke cloud sedang berjalan...", 
-                    Toast.LENGTH_SHORT
-                ).show()
+                val lat = if (hasGps) latLong[0].toDouble() else 0.0
+                val lng = if (hasGps) latLong[1].toDouble() else 0.0
+
+                // Semua foto galeri wajib lewat picker: isi nama + alamat + Plus Code/koordinat
+                onNeedManualLocation(photoFile.absolutePath, lat, lng)
             } catch (e: Exception) {
                 Toast.makeText(
                     context,

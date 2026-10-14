@@ -32,9 +32,9 @@ sealed class Screen(val route: String) {
     object Edit : Screen("edit/{locationId}") {
         fun createRoute(locationId: String) = "edit/$locationId"
     }
-    object LocationPicker : Screen("location_picker/{photoPath}") {
-        fun createRoute(photoPath: String) =
-            "location_picker/${android.net.Uri.encode(photoPath)}"
+    object LocationPicker : Screen("location_picker/{photoPath}/{lat}/{lng}") {
+        fun createRoute(photoPath: String, lat: Double, lng: Double) =
+            "location_picker/${android.net.Uri.encode(photoPath)}/$lat/$lng"
     }
 }
 
@@ -63,8 +63,8 @@ fun NavGraph() {
                 onItemClick = { locationId -> navController.navigate(Screen.Detail.createRoute(locationId)) },
                 onRouteClick = { navController.navigate(Screen.Route.route) },
                 onGroupClick = { navController.navigate(Screen.Groups.route) },
-                onPickLocation = { photoPath ->
-                    navController.navigate(Screen.LocationPicker.createRoute(photoPath))
+                onPickLocation = { photoPath, lat, lng ->
+                    navController.navigate(Screen.LocationPicker.createRoute(photoPath, lat, lng))
                 },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
@@ -127,11 +127,19 @@ fun NavGraph() {
         }
         composable(
             Screen.LocationPicker.route,
-            arguments = listOf(navArgument("photoPath") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("photoPath") { type = NavType.StringType },
+                navArgument("lat") { type = NavType.StringType },
+                navArgument("lng") { type = NavType.StringType }
+            )
         ) { backStackEntry ->
             val photoPath = backStackEntry.arguments?.getString("photoPath") ?: ""
+            val lat = backStackEntry.arguments?.getString("lat")?.toDoubleOrNull() ?: 0.0
+            val lng = backStackEntry.arguments?.getString("lng")?.toDoubleOrNull() ?: 0.0
             LocationPickerScreen(
                 photoPath = photoPath,
+                initialLat = lat,
+                initialLng = lng,
                 onSaved = { navController.popBackStack() },
                 onBack = { navController.popBackStack() }
             )

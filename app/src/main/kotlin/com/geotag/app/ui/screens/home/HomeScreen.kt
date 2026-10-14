@@ -39,7 +39,7 @@ fun HomeScreen(
     onItemClick: (String) -> Unit,
     onRouteClick: () -> Unit,
     onGroupClick: () -> Unit,
-    onPickLocation: (String) -> Unit,
+    onPickLocation: (String, Double, Double) -> Unit,
     onLogout: () -> Unit,
     viewModel: HomeViewModel = viewModel()
 ) {
