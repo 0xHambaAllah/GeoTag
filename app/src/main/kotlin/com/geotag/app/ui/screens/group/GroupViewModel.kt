@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.geotag.app.data.model.Group
 import com.geotag.app.data.model.Invitation
+import com.geotag.app.data.model.UserProfile
 import com.geotag.app.data.repository.LocationRepository
 import com.geotag.app.util.AppConstants
 import kotlinx.coroutines.flow.*
@@ -23,6 +24,9 @@ class GroupViewModel(application: Application) : AndroidViewModel(application) {
     private val _invitations = MutableStateFlow<List<Invitation>>(emptyList())
     val invitations: StateFlow<List<Invitation>> = _invitations
 
+    private val _allUsers = MutableStateFlow<List<UserProfile>>(emptyList())
+    val allUsers: StateFlow<List<UserProfile>> = _allUsers
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
@@ -40,6 +44,7 @@ class GroupViewModel(application: Application) : AndroidViewModel(application) {
                 val email = myEmail ?: return@launch
                 _groups.value = firebase.getMyGroups(email)
                 _invitations.value = firebase.getMyInvitations(email)
+                _allUsers.value = firebase.getAllUsers()
             } catch (e: Exception) {
                 _message.value = "Gagal memuat: ${e.message}"
             } finally {

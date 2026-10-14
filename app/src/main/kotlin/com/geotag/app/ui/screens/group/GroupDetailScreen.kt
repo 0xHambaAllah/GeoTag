@@ -22,6 +22,7 @@ fun GroupDetailScreen(
     viewModel: GroupViewModel = viewModel()
 ) {
     val groups by viewModel.groups.collectAsState()
+    val allUsers by viewModel.allUsers.collectAsState()
     val group = groups.find { it.id == groupId }
     val myEmail = viewModel.myEmail
     val isAdminApp = viewModel.isAdminApp
@@ -150,6 +151,9 @@ fun GroupDetailScreen(
 
     if (showInviteDialog && group != null) {
         InviteDialog(
+            group = group,
+            myEmail = myEmail,
+            allUsers = allUsers,
             onDismiss = { showInviteDialog = false },
             onInvite = { email ->
                 viewModel.inviteUser(group, email)
@@ -265,23 +269,87 @@ fun MemberRow(
 
 @Composable
 fun InviteDialog(
+    group: Group,
+    myEmail: String?,
+    allUsers: List<com.geotag.app.data.model.UserProfile>,
     onDismiss: () -> Unit,
     onInvite: (String) -> Unit
 ) {
-    var email by remember { mutableStateOf("") }
+    // Filter: bukan diri sendiri, belum jadi member
+    val candidates = allUsers.filter { user ->
+        !user.email.equals(myEmail, ignoreCase = true) &&
+        group.members.none { it.equals(user.email, ignoreCase = true) }
+    }
+    var selectedEmail by remember { mutableStateOf<String?>(null) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Undang Anggota") },
         text = {
-            Column {
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email pengguna") },
-                    placeholder = { Text("nama@email.com") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (candidates.isEmpty()) {
+                    Text(
+                        "Tidak ada user lain yang terdaftar.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        "Pilih user yang terdaftar:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 300.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(candidates, key = { it.uid }) { user ->
+                            val selected = selectedEmail == user.email
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = { selectedEmail = user.email },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selected)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Person,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            user.displayName.ifEmpty { user.email },
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        if (user.displayName.isNotEmpty()) {
+                                            Text(
+                                                user.email,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    RadioButton(
+                                        selected = selected,
+                                        onClick = { selectedEmail = user.email }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Undangan akan muncul di menu Grup pengguna tersebut.",
@@ -292,8 +360,8 @@ fun InviteDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onInvite(email) },
-                enabled = email.contains("@")
+                onClick = { selectedEmail?.let { onInvite(it) } },
+                enabled = selectedEmail != null
             ) { Text("Kirim Undangan") }
         },
         dismissButton = {

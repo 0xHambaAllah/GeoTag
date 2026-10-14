@@ -4,6 +4,7 @@ import android.net.Uri
 import com.geotag.app.data.model.GeoLocation
 import com.geotag.app.data.model.Group
 import com.geotag.app.data.model.Invitation
+import com.geotag.app.data.model.UserProfile
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -218,5 +219,65 @@ class FirebaseService {
             docs.mapNotNullTo(result) { it.toObject(GeoLocation::class.java)?.copy(isSynced = true) }
         }
         return result
+    }
+
+    /**
+     * Backfill creatorEmail untuk lokasi lama yang belum punya.
+     * Dipanggil saat login agar data lama bisa muncul di grup.
+     */
+    suspend fun backfillCreatorEmail(userId: String, email: String) {
+        try {
+            val docs = firestore.collection("locations")
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
+                .documents
+            for (doc in docs) {
+                if (doc.getString("creatorEmail").isNullOrEmpty()) {
+                    doc.reference.update("creatorEmail", email).await()
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseService", "Backfill gagal: ${e.message}")
+        }
+    }
+
+    // ===== USER PROFILES (untuk picker undangan) =====
+
+    suspend fun saveUserProfile(uid: String, email: String, displayName: String?) {
+        try {
+            firestore.collection("users")
+                .document(uid)
+                .set(
+                    mapOf(
+                        "email" to email,
+                        "displayName" to (displayName ?: ""),
+                        "lastSeen" to System.currentTimeMillis()
+                    ),
+                    com.google.firebase.firestore.SetOptions.merge()
+                )
+                .await()
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseService", "Save profile gagal: ${e.message}")
+        }
+    }
+
+    suspend fun getAllUsers(): List<UserProfile> {
+        return try {
+            firestore.collection("users")
+                .get()
+                .await()
+                .documents
+                .mapNotNull { doc ->
+                    val email = doc.getString("email") ?: return@mapNotNull null
+                    UserProfile(
+                        uid = doc.id,
+                        email = email,
+                        displayName = doc.getString("displayName") ?: ""
+                    )
+                }
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 }

@@ -71,6 +71,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _userId.collect { uid ->
                 if (uid != null) {
+                    // Simpan profil user (untuk picker undangan grup)
+                    val email = userEmail
+                    if (email != null) {
+                        repository.firebase.saveUserProfile(
+                            uid, email, repository.firebase.currentUserName
+                        )
+                        // Backfill creatorEmail untuk lokasi lama agar muncul di grup
+                        repository.firebase.backfillCreatorEmail(uid, email)
+                    }
                     // User baru login, sync data dari Firebase
                     syncFromRemote()
                     refreshGroupLocations()
