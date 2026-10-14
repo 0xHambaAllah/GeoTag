@@ -230,11 +230,6 @@ fun CameraScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                                     )
-                                    Text(
-                                        "Plus Code: ${com.geotag.app.util.PlusCode.encode(loc.latitude, loc.longitude)}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                    )
                                 }
                             }
                         }

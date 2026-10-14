@@ -5,7 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,9 +30,11 @@ import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 
 /**
- * Pilih lokasi manual untuk foto galeri.
- * Wajib isi: nama + alamat + koordinat (Plus Code / tap peta / ketik angka / GPS).
- * Koordinat awal terisi dari EXIF foto bila ada.
+ * Input lokasi foto galeri:
+ * - Nama alamat (wajib)
+ * - Nomor (opsional)
+ * - Plus Code / koordinat (wajib) — salin manual dari Google Maps lalu tempel.
+ * Alamat jalan terisi otomatis dari koordinat (reverse geocode).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,11 +51,12 @@ fun LocationPickerScreen(
     val repository = remember { LocationRepository(context) }
 
     var name by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
     var latText by remember { mutableStateOf(if (initialLat != 0.0) initialLat.toString() else "") }
     var lngText by remember { mutableStateOf(if (initialLng != 0.0) initialLng.toString() else "") }
     var plusCodeText by remember { mutableStateOf("") }
     var plusCodeError by remember { mutableStateOf<String?>(null) }
+    var autoAddress by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
     var isLoadingAddress by remember { mutableStateOf(false) }
     var mapCenter by remember { mutableStateOf(GeoPoint(-6.2088, 106.8456)) }
@@ -63,7 +69,7 @@ fun LocationPickerScreen(
         scope.launch(Dispatchers.IO) {
             val result = LocationUtils.getAddressFromLocation(context, lat, lng)
             withContext(Dispatchers.Main) {
-                if (result.isNotEmpty()) address = result
+                autoAddress = result
                 isLoadingAddress = false
             }
         }
@@ -83,7 +89,7 @@ fun LocationPickerScreen(
             plusCodeError = null
             setPoint(decoded.first, decoded.second)
         } else {
-            plusCodeError = "Plus Code tidak valid. Tempel kode lengkap (misal 6P4JC28P+M9) atau tap peta dulu untuk kode pendek."
+            plusCodeError = "Plus Code tidak valid. Salin kode lengkap dari Google Maps (misal 6P4JC28P+M9)."
         }
     }
 
@@ -105,7 +111,7 @@ fun LocationPickerScreen(
     val pickedLng = lngText.toDoubleOrNull()
     val coordsValid = pickedLat != null && pickedLng != null &&
         pickedLat in -90.0..90.0 && pickedLng in -180.0..180.0
-    val canSave = name.isNotBlank() && address.isNotBlank() && coordsValid && !isSaving
+    val canSave = name.isNotBlank() && coordsValid && !isSaving
 
     Scaffold(
         topBar = {
@@ -125,7 +131,7 @@ fun LocationPickerScreen(
                 .padding(padding)
         ) {
             Text(
-                "Isi nama & alamat, lalu tentukan titik akurat lewat Plus Code atau tap peta.",
+                "Salin Plus Code dari Google Maps lalu tempel di bawah, atau tap peta.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -193,7 +199,7 @@ fun LocationPickerScreen(
                 }
             }
 
-            // Form
+            // Form: Nama alamat (wajib) + Nomor (opsional) + Plus Code (wajib)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -207,22 +213,19 @@ fun LocationPickerScreen(
                     placeholder = { Text("Contoh: Rumah, Toko, Kantor, Masjid") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Label, null) },
                     isError = name.isBlank()
                 )
                 OutlinedTextField(
-                    value = address,
-                    onValueChange = { address = it },
-                    label = { Text("Alamat *") },
-                    placeholder = { Text("Jl. ..., Kota, Provinsi") },
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Nomor (opsional)") },
+                    placeholder = { Text("08xxxxxxxxxx") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    trailingIcon = {
-                        if (isLoadingAddress) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        }
-                    }
+                    leadingIcon = { Icon(Icons.Default.Phone, null) }
                 )
-                // Plus Code — paling akurat di Maps
+                // Plus Code — salin manual dari Google Maps
                 OutlinedTextField(
                     value = plusCodeText,
                     onValueChange = { newValue ->
@@ -230,9 +233,10 @@ fun LocationPickerScreen(
                         if (newValue.isNotBlank()) applyPlusCode(newValue) else plusCodeError = null
                     },
                     label = { Text("Plus Code *") },
-                    placeholder = { Text("Tempel dari Google Maps / tap peta") },
+                    placeholder = { Text("Salin dari Google Maps, tempel di sini") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.LocationOn, null) },
                     isError = plusCodeError != null,
                     trailingIcon = {
                         IconButton(onClick = {
@@ -267,7 +271,7 @@ fun LocationPickerScreen(
                                 plusCodeError = null
                             }
                         },
-                        label = { Text("Latitude *") },
+                        label = { Text("Latitude") },
                         placeholder = { Text("-6.2088") },
                         modifier = Modifier.weight(1f),
                         singleLine = true
@@ -283,7 +287,7 @@ fun LocationPickerScreen(
                                 plusCodeError = null
                             }
                         },
-                        label = { Text("Longitude *") },
+                        label = { Text("Longitude") },
                         placeholder = { Text("106.8456") },
                         modifier = Modifier.weight(1f),
                         singleLine = true
@@ -294,6 +298,20 @@ fun LocationPickerScreen(
                         "Koordinat tidak valid. Latitude -90 s.d. 90, Longitude -180 s.d. 180.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
+                    )
+                }
+                // Alamat jalan otomatis dari koordinat
+                if (isLoadingAddress) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Memuat alamat...", style = MaterialTheme.typography.bodySmall)
+                    }
+                } else if (autoAddress.isNotEmpty()) {
+                    Text(
+                        autoAddress,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Button(
@@ -307,11 +325,11 @@ fun LocationPickerScreen(
                                     userId = uid,
                                     creatorEmail = repository.firebase.currentUserEmail ?: "",
                                     name = name.trim(),
-                                    phoneNumber = "",
+                                    phoneNumber = phone.trim(),
                                     photoLocalPath = photoPath,
                                     latitude = pickedLat!!,
                                     longitude = pickedLng!!,
-                                    address = address.trim(),
+                                    address = autoAddress.ifEmpty { plusCodeText },
                                     timestamp = System.currentTimeMillis(),
                                     isSynced = false
                                 )
