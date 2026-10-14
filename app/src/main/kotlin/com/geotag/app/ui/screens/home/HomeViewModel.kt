@@ -9,6 +9,7 @@ import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.geotag.app.data.model.GeoLocation
+import com.geotag.app.util.AppConstants
 import com.geotag.app.data.repository.LocationRepository
 import com.geotag.app.util.LocationUtils
 import com.geotag.app.util.PhotoUtils

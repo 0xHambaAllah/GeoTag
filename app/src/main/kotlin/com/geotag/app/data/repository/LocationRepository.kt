@@ -4,6 +4,7 @@ import android.content.Context
 import com.geotag.app.data.local.GeoTagDatabase
 import com.geotag.app.data.model.GeoLocation
 import com.geotag.app.data.remote.FirebaseService
+import com.geotag.app.util.AppConstants
 import com.geotag.app.data.remote.SyncWorker
 import kotlinx.coroutines.flow.Flow
 import java.io.File
