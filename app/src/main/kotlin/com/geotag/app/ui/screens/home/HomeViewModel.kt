@@ -271,7 +271,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _userId.value = null
     }
     
-    fun handleGalleryPhoto(context: Context, uri: Uri, onNavigateToCamera: () -> Unit) {
+    fun handleGalleryPhoto(context: Context, uri: Uri, onNeedManualLocation: (String) -> Unit) {
         viewModelScope.launch {
             try {
                 // Copy photo to app storage
@@ -295,25 +295,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     latitude = latLong[0].toDouble()
                     longitude = latLong[1].toDouble()
                 } else {
-                    // No GPS data - coba ambil lokasi fresh (jangan andalkan cache)
-                    var currentLoc = _currentLocation.value
-                    if (currentLoc == null) {
-                        currentLoc = LocationUtils.getCurrentLocation(getApplication())
-                        if (currentLoc != null) {
-                            _currentLocation.value = currentLoc
-                        }
-                    }
-                    if (currentLoc == null) {
-                        photoFile.delete()
-                        Toast.makeText(
-                            context,
-                            "Tidak bisa mendapatkan lokasi saat ini. Aktifkan GPS dan coba lagi.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        return@launch
-                    }
-                    latitude = currentLoc.latitude
-                    longitude = currentLoc.longitude
+                    // Foto tanpa GPS -> wajib input manual (alamat + koordinat di peta)
+                    onNeedManualLocation(photoFile.absolutePath)
+                    return@launch
                 }
                 
                 val address = LocationUtils.getAddressFromLocation(

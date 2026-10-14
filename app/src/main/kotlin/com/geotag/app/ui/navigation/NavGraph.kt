@@ -14,6 +14,7 @@ import com.geotag.app.ui.screens.home.HomeScreen
 import com.geotag.app.ui.screens.route.RouteScreen
 import com.geotag.app.ui.screens.group.GroupScreen
 import com.geotag.app.ui.screens.group.GroupDetailScreen
+import com.geotag.app.ui.screens.picker.LocationPickerScreen
 import com.google.firebase.auth.FirebaseAuth
 
 sealed class Screen(val route: String) {
@@ -30,6 +31,10 @@ sealed class Screen(val route: String) {
     }
     object Edit : Screen("edit/{locationId}") {
         fun createRoute(locationId: String) = "edit/$locationId"
+    }
+    object LocationPicker : Screen("location_picker/{photoPath}") {
+        fun createRoute(photoPath: String) =
+            "location_picker/${android.net.Uri.encode(photoPath)}"
     }
 }
 
@@ -58,6 +63,9 @@ fun NavGraph() {
                 onItemClick = { locationId -> navController.navigate(Screen.Detail.createRoute(locationId)) },
                 onRouteClick = { navController.navigate(Screen.Route.route) },
                 onGroupClick = { navController.navigate(Screen.Groups.route) },
+                onPickLocation = { photoPath ->
+                    navController.navigate(Screen.LocationPicker.createRoute(photoPath))
+                },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
@@ -113,6 +121,17 @@ fun NavGraph() {
             val locationId = backStackEntry.arguments?.getString("locationId") ?: ""
             EditScreen(
                 locationId = locationId,
+                onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            Screen.LocationPicker.route,
+            arguments = listOf(navArgument("photoPath") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val photoPath = backStackEntry.arguments?.getString("photoPath") ?: ""
+            LocationPickerScreen(
+                photoPath = photoPath,
                 onSaved = { navController.popBackStack() },
                 onBack = { navController.popBackStack() }
             )

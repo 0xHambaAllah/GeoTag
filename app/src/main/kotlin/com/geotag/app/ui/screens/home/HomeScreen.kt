@@ -39,6 +39,7 @@ fun HomeScreen(
     onItemClick: (String) -> Unit,
     onRouteClick: () -> Unit,
     onGroupClick: () -> Unit,
+    onPickLocation: (String) -> Unit,
     onLogout: () -> Unit,
     viewModel: HomeViewModel = viewModel()
 ) {
@@ -58,7 +59,7 @@ fun HomeScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let {
-            viewModel.handleGalleryPhoto(context, it, onAddClick)
+            viewModel.handleGalleryPhoto(context, it, onPickLocation)
         }
     }
     
