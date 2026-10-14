@@ -43,7 +43,7 @@ class RouteViewModel(application: Application) : AndroidViewModel(application) {
     
     val userId: String? get() = repository.firebase.currentUserId
     
-    val locations: StateFlow<List<GeoLocation>> = _searchQuery
+    private val myLocations: StateFlow<List<GeoLocation>> = _searchQuery
         .debounce(300)
         .flatMapLatest { query ->
             val uid = userId ?: return@flatMapLatest flowOf(emptyList())
@@ -54,9 +54,54 @@ class RouteViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Lokasi dari anggota grup (digabung untuk tampilan)
+    private val _groupLocations = MutableStateFlow<List<GeoLocation>>(emptyList())
+
+    /** Gabungan lokasi sendiri + lokasi anggota grup */
+    val locations: StateFlow<List<GeoLocation>> = combine(
+        myLocations, _groupLocations, _searchQuery
+    ) { myLocs, groupLocs, query ->
+        val filteredGroup = if (query.isEmpty()) {
+            groupLocs
+        } else {
+            groupLocs.filter {
+                it.name.contains(query, ignoreCase = true) ||
+                it.address.contains(query, ignoreCase = true)
+            }
+        }
+        (myLocs + filteredGroup)
+            .distinctBy { it.id }
+            .sortedByDescending { it.timestamp }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
     init {
         refreshLocation()
+        refreshGroupLocations()
+    }
+
+    /**
+     * Ambil lokasi dari semua anggota grup yang saya ikuti.
+     */
+    fun refreshGroupLocations() {
+        viewModelScope.launch {
+            val email = repository.firebase.currentUserEmail ?: return@launch
+            try {
+                val groups = repository.firebase.getMyGroups(email)
+                val memberEmails = groups
+                    .flatMap { it.members }
+                    .map { it.lowercase() }
+                    .distinct()
+                    .filter { it != email.lowercase() }
+                _groupLocations.value = if (memberEmails.isNotEmpty()) {
+                    repository.firebase.getLocationsByEmails(memberEmails)
+                } else {
+                    emptyList()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
     
     fun onSearchQueryChange(query: String) {

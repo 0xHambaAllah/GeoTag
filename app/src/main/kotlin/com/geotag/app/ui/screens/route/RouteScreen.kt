@@ -414,6 +414,14 @@ fun LocationCheckboxItem(
                     text = location.name.ifEmpty { "Tanpa nama" },
                     style = MaterialTheme.typography.titleMedium
                 )
+                if (location.creatorEmail.isNotEmpty()) {
+                    Text(
+                        text = "by ${location.creatorEmail}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1
+                    )
+                }
                 if (location.address.isNotEmpty()) {
                     Text(
                         text = location.address,
