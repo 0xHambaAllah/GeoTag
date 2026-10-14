@@ -62,6 +62,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:20.7.0")
     implementation("com.google.android.gms:play-services-location:21.1.0")
 
+    // osmdroid - test dependensi saja
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
+
     // CameraX
     val cameraxVersion = "1.3.1"
     implementation("androidx.camera:camera-core:$cameraxVersion")
