@@ -9,6 +9,7 @@ data class GeoLocation(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
     val userId: String = "",
+    val creatorEmail: String = "",
     val name: String = "",
     val phoneNumber: String = "",
     val photoLocalPath: String = "",

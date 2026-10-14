@@ -12,6 +12,8 @@ import com.geotag.app.ui.screens.detail.DetailScreen
 import com.geotag.app.ui.screens.detail.EditScreen
 import com.geotag.app.ui.screens.home.HomeScreen
 import com.geotag.app.ui.screens.route.RouteScreen
+import com.geotag.app.ui.screens.group.GroupScreen
+import com.geotag.app.ui.screens.group.GroupDetailScreen
 import com.google.firebase.auth.FirebaseAuth
 
 sealed class Screen(val route: String) {
@@ -19,6 +21,10 @@ sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Camera : Screen("camera")
     object Route : Screen("route")
+    object Groups : Screen("groups")
+    object GroupDetail : Screen("group/{groupId}") {
+        fun createRoute(groupId: String) = "group/$groupId"
+    }
     object Detail : Screen("detail/{locationId}") {
         fun createRoute(locationId: String) = "detail/$locationId"
     }
@@ -51,6 +57,7 @@ fun NavGraph() {
                 onAddClick = { navController.navigate(Screen.Camera.route) },
                 onItemClick = { locationId -> navController.navigate(Screen.Detail.createRoute(locationId)) },
                 onRouteClick = { navController.navigate(Screen.Route.route) },
+                onGroupClick = { navController.navigate(Screen.Groups.route) },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
@@ -66,6 +73,24 @@ fun NavGraph() {
         }
         composable(Screen.Route.route) {
             RouteScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.Groups.route) {
+            GroupScreen(
+                onBack = { navController.popBackStack() },
+                onGroupClick = { groupId ->
+                    navController.navigate(Screen.GroupDetail.createRoute(groupId))
+                }
+            )
+        }
+        composable(
+            Screen.GroupDetail.route,
+            arguments = listOf(navArgument("groupId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val groupId = backStackEntry.arguments?.getString("groupId") ?: ""
+            GroupDetailScreen(
+                groupId = groupId,
                 onBack = { navController.popBackStack() }
             )
         }

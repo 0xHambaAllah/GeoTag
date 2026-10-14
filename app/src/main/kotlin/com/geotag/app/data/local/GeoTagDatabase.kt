@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.geotag.app.data.model.GeoLocation
 
-@Database(entities = [GeoLocation::class], version = 1, exportSchema = false)
+@Database(entities = [GeoLocation::class], version = 2, exportSchema = false)
 abstract class GeoTagDatabase : RoomDatabase() {
     abstract fun locationDao(): LocationDao
 
@@ -20,7 +20,9 @@ abstract class GeoTagDatabase : RoomDatabase() {
                     context.applicationContext,
                     GeoTagDatabase::class.java,
                     "geotag_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration() // v1->v2: tambah creatorEmail (data aman di cloud)
+                    .build()
                 INSTANCE = instance
                 instance
             }

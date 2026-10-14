@@ -89,6 +89,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 val userId = repository.firebase.currentUserId ?: throw Exception("User not logged in")
                 val geoLocation = GeoLocation(
                     userId = userId,
+                    creatorEmail = repository.firebase.currentUserEmail ?: "",
                     name = state.name,
                     phoneNumber = state.phoneNumber,
                     photoLocalPath = photoFile.absolutePath,

@@ -37,11 +37,12 @@ fun HomeScreen(
     onAddClick: () -> Unit,
     onItemClick: (String) -> Unit,
     onRouteClick: () -> Unit,
+    onGroupClick: () -> Unit,
     onLogout: () -> Unit,
     viewModel: HomeViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    val locations by viewModel.locations.collectAsState()
+    val locations by viewModel.displayLocations.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentLocation by viewModel.currentLocation.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
@@ -101,11 +102,33 @@ fun HomeScreen(
                     Column {
                         Text("GeoTag")
                         viewModel.userEmail?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                if (com.geotag.app.util.AppConstants.isAdminApp(it)) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    AssistChip(
+                                        onClick = {},
+                                        label = {
+                                            Text(
+                                                com.geotag.app.util.AppConstants.ADMIN_APP_LABEL,
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 },
                 actions = {
+                    IconButton(onClick = onGroupClick) {
+                        Icon(Icons.Default.Group, "Grup")
+                    }
                     IconButton(onClick = onRouteClick) {
                         Icon(Icons.Default.Route, "Buat Rute")
                     }
@@ -413,6 +436,39 @@ fun LocationCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                // Atribusi pembuat (by email) + label Admin App
+                if (location.creatorEmail.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Person,
+                            null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = " by ${location.creatorEmail}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (com.geotag.app.util.AppConstants.isAdminApp(location.creatorEmail)) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            AssistChip(
+                                onClick = {},
+                                label = {
+                                    Text(
+                                        com.geotag.app.util.AppConstants.ADMIN_APP_LABEL,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))

@@ -45,6 +45,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Lokasi dari anggota grup (diambil dari Firestore, digabung untuk tampilan)
+    private val _groupLocations = MutableStateFlow<List<GeoLocation>>(emptyList())
+
+    /** Gabungan lokasi sendiri + lokasi anggota grup (dengan atribusi creatorEmail) */
+    val displayLocations: StateFlow<List<GeoLocation>> = combine(
+        locations, _groupLocations, _searchQuery
+    ) { myLocs, groupLocs, query ->
+        val filteredGroup = if (query.isEmpty()) {
+            groupLocs
+        } else {
+            groupLocs.filter {
+                it.name.contains(query, ignoreCase = true) ||
+                it.address.contains(query, ignoreCase = true)
+            }
+        }
+        (myLocs + filteredGroup)
+            .distinctBy { it.id }
+            .sortedByDescending { it.timestamp }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
         refreshLocation()
         // Auto restore data saat login
@@ -53,6 +73,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 if (uid != null) {
                     // User baru login, sync data dari Firebase
                     syncFromRemote()
+                    refreshGroupLocations()
                 }
             }
         }
@@ -74,6 +95,34 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _isRefreshing.value = true
             _userId.value?.let { repository.syncFromRemote(it) }
             _isRefreshing.value = false
+        }
+        refreshGroupLocations()
+    }
+
+    /**
+     * Ambil lokasi dari semua anggota grup yang saya ikuti.
+     * Dipanggil saat login, sync, dan kembali dari menu grup.
+     * Jika user keluar grup, datanya otomatis tidak muncul lagi.
+     */
+    fun refreshGroupLocations() {
+        viewModelScope.launch {
+            val email = userEmail ?: return@launch
+            try {
+                val groups = repository.firebase.getMyGroups(email)
+                val memberEmails = groups
+                    .flatMap { it.members }
+                    .map { it.lowercase() }
+                    .distinct()
+                    .filter { it != email.lowercase() }
+                _groupLocations.value = if (memberEmails.isNotEmpty()) {
+                    repository.firebase.getLocationsByEmails(memberEmails)
+                } else {
+                    emptyList()
+                }
+            } catch (e: Exception) {
+                // Biarkan data lama, jangan crash
+                e.printStackTrace()
+            }
         }
     }
     
@@ -161,6 +210,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 val uid = _userId.value ?: throw Exception("User not logged in")
                 val geoLocation = GeoLocation(
                     userId = uid,
+                    creatorEmail = repository.firebase.currentUserEmail ?: "",
                     name = "",
                     phoneNumber = "",
                     photoLocalPath = photoFile.absolutePath,

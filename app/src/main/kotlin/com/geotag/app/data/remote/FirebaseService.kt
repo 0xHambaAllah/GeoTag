@@ -2,6 +2,8 @@ package com.geotag.app.data.remote
 
 import android.net.Uri
 import com.geotag.app.data.model.GeoLocation
+import com.geotag.app.data.model.Group
+import com.geotag.app.data.model.Invitation
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -136,5 +138,85 @@ class FirebaseService {
                 "phoneNumber" to location.phoneNumber,
                 "address" to location.address
             )).await()
+    }
+
+    // ===== GROUP METHODS =====
+
+    suspend fun createGroup(group: Group) {
+        firestore.collection("groups")
+            .document(group.id)
+            .set(group)
+            .await()
+    }
+
+    suspend fun getMyGroups(email: String): List<Group> {
+        return firestore.collection("groups")
+            .whereArrayContains("members", email)
+            .get()
+            .await()
+            .documents
+            .mapNotNull { it.toObject(Group::class.java) }
+    }
+
+    suspend fun getGroup(groupId: String): Group? {
+        return firestore.collection("groups")
+            .document(groupId)
+            .get()
+            .await()
+            .toObject(Group::class.java)
+    }
+
+    suspend fun updateGroup(group: Group) {
+        firestore.collection("groups")
+            .document(group.id)
+            .set(group)
+            .await()
+    }
+
+    suspend fun deleteGroup(groupId: String) {
+        firestore.collection("groups")
+            .document(groupId)
+            .delete()
+            .await()
+    }
+
+    suspend fun inviteUser(invitation: Invitation) {
+        firestore.collection("invitations")
+            .document(invitation.id)
+            .set(invitation)
+            .await()
+    }
+
+    suspend fun getMyInvitations(email: String): List<Invitation> {
+        return firestore.collection("invitations")
+            .whereEqualTo("invitedEmail", email)
+            .whereEqualTo("status", "pending")
+            .get()
+            .await()
+            .documents
+            .mapNotNull { it.toObject(Invitation::class.java) }
+    }
+
+    suspend fun updateInvitation(invitation: Invitation) {
+        firestore.collection("invitations")
+            .document(invitation.id)
+            .set(invitation)
+            .await()
+    }
+
+    /** Ambil lokasi dari beberapa user (untuk tampilan gabungan grup) */
+    suspend fun getLocationsByEmails(emails: List<String>): List<GeoLocation> {
+        if (emails.isEmpty()) return emptyList()
+        val result = mutableListOf<GeoLocation>()
+        // Firestore whereIn maksimal 10, batch jika perlu
+        emails.chunked(10).forEach { chunk ->
+            val docs = firestore.collection("locations")
+                .whereIn("creatorEmail", chunk)
+                .get()
+                .await()
+                .documents
+            docs.mapNotNullTo(result) { it.toObject(GeoLocation::class.java)?.copy(isSynced = true) }
+        }
+        return result
     }
 }
