@@ -14,6 +14,13 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.osmdroid.util.GeoPoint
 
+/** Kendaraan trip: Motor (default), Mobil, Jalan Kaki. */
+enum class VehicleMode(val label: String) {
+    MOTOR("Motor"),
+    MOBIL("Mobil"),
+    JALAN_KAKI("Jalan Kaki")
+}
+
 class RouteViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = LocationRepository(application)
     
@@ -40,6 +47,19 @@ class RouteViewModel(application: Application) : AndroidViewModel(application) {
     
     private val _currentLocation = MutableStateFlow<Location?>(null)
     val currentLocation: StateFlow<Location?> = _currentLocation
+
+    // Kendaraan trip — default Motor
+    private val _vehicleMode = MutableStateFlow(VehicleMode.MOTOR)
+    val vehicleMode: StateFlow<VehicleMode> = _vehicleMode
+
+    fun setVehicleMode(mode: VehicleMode) {
+        if (_vehicleMode.value == mode) return
+        _vehicleMode.value = mode
+        val route = _sortedRoute.value
+        if (route.size >= 2) {
+            viewModelScope.launch { fetchOsrmRoute(route) }
+        }
+    }
     
     val userId: String? get() = repository.firebase.currentUserId
     
@@ -151,14 +171,24 @@ class RouteViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     /**
-     * Ambil garis rute driving dari OSRM (gratis, tanpa API key).
+     * Ambil garis rute dari OSRM (gratis, tanpa API key).
+     * Trip dimulai dari lokasi saya sekarang, lalu ke Trip 1 dst.
+     * Profil OSRM: driving untuk Motor/Mobil, walking untuk Jalan Kaki.
      * Mengisi _routePoints (polyline) dan _routeInfo (jarak & durasi).
      */
     private suspend fun fetchOsrmRoute(route: List<GeoLocation>) {
         _isLoadingRoute.value = true
         try {
-            val coords = route.joinToString(";") { "${it.longitude},${it.latitude}" }
-            val url = "https://router.project-osrm.org/route/v1/driving/$coords?overview=full&geometries=geojson"
+            val profile = when (_vehicleMode.value) {
+                VehicleMode.JALAN_KAKI -> "walking"
+                else -> "driving"
+            }
+            // Titik awal = lokasi saya sekarang, lalu Trip 1 dst
+            val allPoints = mutableListOf<GeoPoint>()
+            _currentLocation.value?.let { allPoints.add(GeoPoint(it.latitude, it.longitude)) }
+            allPoints.addAll(route.map { GeoPoint(it.latitude, it.longitude) })
+            val coords = allPoints.joinToString(";") { "${it.longitude},${it.latitude}" }
+            val url = "https://router.project-osrm.org/route/v1/$profile/$coords?overview=full&geometries=geojson"
             val client = okhttp3.OkHttpClient()
             val request = okhttp3.Request.Builder().url(url).build()
             val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
@@ -184,8 +214,11 @@ class RouteViewModel(application: Application) : AndroidViewModel(application) {
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            // Fallback: garis lurus antar lokasi jika OSRM gagal
-            _routePoints.value = route.map { GeoPoint(it.latitude, it.longitude) }
+            // Fallback: garis lurus dari lokasi saya → Trip 1 dst jika OSRM gagal
+            val points = mutableListOf<GeoPoint>()
+            _currentLocation.value?.let { points.add(GeoPoint(it.latitude, it.longitude)) }
+            points.addAll(route.map { GeoPoint(it.latitude, it.longitude) })
+            _routePoints.value = points
             _routeInfo.value = null
         } finally {
             _isLoadingRoute.value = false

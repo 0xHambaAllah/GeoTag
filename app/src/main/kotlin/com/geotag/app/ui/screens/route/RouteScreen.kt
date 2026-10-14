@@ -57,8 +57,36 @@ fun createNumberedMarkerIcon(ctx: android.content.Context, number: Int, colorHex
     return android.graphics.drawable.BitmapDrawable(ctx.resources, bitmap)
 }
 
-@Composable
-fun RouteMapView(
+// Icon marker titik awal (lokasi saya sekarang): lingkaran oranye + teks START
+fun createStartMarkerIcon(ctx: android.content.Context): android.graphics.drawable.BitmapDrawable {
+    val size = 100
+    val bitmap = android.graphics.Bitmap.createBitmap(size, size + 24, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    val cx = size / 2f
+    val cy = size / 2f
+    val colorPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.parseColor("#FF5722")
+        isAntiAlias = true
+    }
+    val textPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.WHITE
+        textSize = 24f
+        isAntiAlias = true
+        textAlign = android.graphics.Paint.Align.CENTER
+        isFakeBoldText = true
+    }
+    canvas.drawCircle(cx, cy, 44f, colorPaint)
+    val fm = textPaint.fontMetrics
+    canvas.drawText("START", cx, cy - (fm.ascent + fm.descent) / 2, textPaint)
+    val path = android.graphics.Path().apply {
+        moveTo(cx - 11f, cy + 40f)
+        lineTo(cx + 11f, cy + 40f)
+        lineTo(cx, cy + 58f)
+        close()
+    }
+    canvas.drawPath(path, colorPaint)
+    return android.graphics.drawable.BitmapDrawable(ctx.resources, bitmap)
+}
     route: List<GeoLocation>,
     routePoints: List<GeoPoint>,
     currentLocation: android.location.Location?
@@ -97,11 +125,16 @@ fun RouteMapView(
                     )
                     mapView.overlays.add(marker)
                 }
-                // Lokasi saat ini
+                // Lokasi saat ini = titik awal trip
                 currentLocation?.let {
                     val me = org.osmdroid.views.overlay.Marker(mapView)
                     me.position = GeoPoint(it.latitude, it.longitude)
-                    me.title = "Lokasi saya"
+                    me.title = "Titik Awal — Lokasi saya sekarang"
+                    me.icon = createStartMarkerIcon(mapView.context)
+                    me.setAnchor(
+                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                        org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
+                    )
                     mapView.overlays.add(me)
                 }
                 // Fit ke semua marker
@@ -139,6 +172,7 @@ fun RouteScreen(
     val routeInfo by viewModel.routeInfo.collectAsState()
     val isLoadingRoute by viewModel.isLoadingRoute.collectAsState()
     val currentLocation by viewModel.currentLocation.collectAsState()
+    val vehicleMode by viewModel.vehicleMode.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val context = LocalContext.current
 
@@ -182,7 +216,7 @@ fun RouteScreen(
                             onClick = {
                                 val route = sortedRoute.ifEmpty { viewModel.calculateOptimizedRoute() }
                                 if (route.isNotEmpty()) {
-                                    openGoogleMapsRoute(context, route, viewModel)
+                                    openGoogleMapsRoute(context, route, currentLocation, vehicleMode)
                                 }
                             },
                             enabled = selectedLocations.size >= 2
@@ -260,7 +294,7 @@ fun RouteScreen(
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            "Pilih 2+ lokasi, app akan mengurutkan berdasarkan jarak terdekat",
+                            "Trip dimulai dari lokasi kamu sekarang, lalu ke lokasi terdekat dst.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -275,6 +309,26 @@ fun RouteScreen(
                             .padding(horizontal = 16.dp),
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
+                            // Pemilih kendaraan — default Motor
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Kendaraan:",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                VehicleMode.entries.forEach { mode ->
+                                    FilterChip(
+                                        selected = vehicleMode == mode,
+                                        onClick = { viewModel.setVehicleMode(mode) },
+                                        label = { Text(mode.label) },
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -352,6 +406,14 @@ fun RouteScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                // Titik awal = lokasi saya sekarang
+                                currentLocation?.let {
+                                    Text(
+                                        "Titik Awal — Lokasi saya sekarang",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                                 sortedRoute.forEachIndexed { index, loc ->
                                     Text(
                                         "${index + 1}. ${loc.name.ifEmpty { "Tanpa nama" }}",
@@ -443,26 +505,36 @@ fun LocationCheckboxItem(
 private fun openGoogleMapsRoute(
     context: android.content.Context,
     route: List<GeoLocation>,
-    viewModel: RouteViewModel
+    currentLocation: android.location.Location?,
+    vehicleMode: VehicleMode
 ) {
     if (route.isEmpty()) return
 
-    // Build waypoints string for Google Maps
-    val origin = route.first()
+    // Trip dimulai dari lokasi saya sekarang (bila GPS tersedia),
+    // lalu ke Trip 1 dst. Google Maps tidak punya mode motor,
+    // jadi Motor & Mobil memakai travelmode=driving.
+    val origin = if (currentLocation != null) {
+        "${currentLocation.latitude},${currentLocation.longitude}"
+    } else {
+        "${route.first().latitude},${route.first().longitude}"
+    }
     val destination = route.last()
-    val waypoints = if (route.size > 2) {
-        route.subList(1, route.size - 1)
-            .joinToString("|") { "${it.latitude},${it.longitude}" }
-    } else ""
+    val waypointLocs = if (currentLocation != null) {
+        route.dropLast(1)
+    } else {
+        if (route.size > 2) route.subList(1, route.size - 1) else emptyList()
+    }
+    val waypoints = waypointLocs.joinToString("|") { "${it.latitude},${it.longitude}" }
+    val travelMode = if (vehicleMode == VehicleMode.JALAN_KAKI) "walking" else "driving"
 
     val uri = buildString {
         append("https://www.google.com/maps/dir/?api=1")
-        append("&origin=${origin.latitude},${origin.longitude}")
+        append("&origin=$origin")
         append("&destination=${destination.latitude},${destination.longitude}")
         if (waypoints.isNotEmpty()) {
             append("&waypoints=$waypoints")
         }
-        append("&travelmode=driving")
+        append("&travelmode=$travelMode")
     }
 
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri))
